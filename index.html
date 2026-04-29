@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sensasion</title>
+    <link rel="icon" type="image/png" href="public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- NAVBAR -->
+<div id="navbar-placeholder"></div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="container hero-content">
+    <div class="row">
+      <div class="col-lg-7">
+        <h1 class="hero-title fade-up">
+          Selamat Datang di<br><em>Sensasion</em>
+        </h1>
+        <p class="hero-tagline fade-up">
+          Destinasi wisata keluarga terbaik di Samarinda. Kolam renang bersih, pemancingan segar, gazebo nyaman, dan kuliner lezat dalam satu tempat asri.
+        </p>
+        <div class="d-flex gap-3 flex-wrap fade-up">
+          <a href="reservasi.html" class="btn-primary-sns">
+            <i class="bi bi-calendar-check"></i> Reservasi Sekarang
+          </a>
+          <a href="fasilitas.html" class="btn-outline-sns">
+            <i class="bi bi-grid"></i> Lihat Fasilitas
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CUACA + CHART -->
+<section class="section-pad" style="background:var(--soft);">
+  <div class="container">
+    <div class="text-center mb-5">
+      <div class="section-label">Informasi Real-time</div>
+      <h2 class="section-title">Kondisi Terkini</h2>
+      <p class="section-sub">Data cuaca langsung dan pola jam sibuk kunjungan Sensasion</p>
+    </div>
+
+    <!-- Weather -->
+    <div id="weatherBlock" class="mb-4 fade-up">
+      <div class="weather-card">
+        <p style="color:rgba(255,255,255,.6);margin:0;">Memuat data cuaca...</p>
+      </div>
+    </div>
+
+    <!-- Chart jam sibuk -->
+    <div class="chart-card fade-up">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+        <div>
+          <h4 style="font-family:'Playfair Display',serif;color:var(--navy);font-size:1.2rem;margin-bottom:4px;">Jam Sibuk Pengunjung</h4>
+          <p style="font-size:.83rem;color:var(--muted);margin:0;">Pola intensitas kunjungan harian Sensasion</p>
+        </div>
+        <div class="d-flex gap-3">
+          <div class="d-flex align-items-center gap-2" style="font-size:.78rem;color:var(--muted);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#ef4444;display:block;"></span>Tinggi
+          </div>
+          <div class="d-flex align-items-center gap-2" style="font-size:.78rem;color:var(--muted);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#f0b429;display:block;"></span>Sedang
+          </div>
+          <div class="d-flex align-items-center gap-2" style="font-size:.78rem;color:var(--muted);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#2eb5ff;display:block;"></span>Rendah
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="busyChart"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FASILITAS -->
+<section class="section-pad">
+  <div class="container">
+    <div class="text-center mb-5">
+      <div class="section-label">Fasilitas</div>
+      <h2 class="section-title">Yang Kami Tawarkan</h2>
+      <p class="section-sub">Nikmati berbagai fasilitas lengkap untuk liburan keluarga yang menyenangkan</p>
+    </div>
+    <div class="row g-4" id="fasilitasGrid">
+      <!-- Diisi oleh JS -->
+    </div>
+    <div class="text-center mt-4">
+      <a href="fasilitas.html" class="btn-primary-sns">Lihat Semua Fasilitas <i class="bi bi-arrow-right"></i></a>
+    </div>
+  </div>
+</section>
+
+<!-- ULASAN (Vue JS) -->
+<section class="section-pad" style="background:var(--soft);">
+  <div class="container">
+    <div class="text-center mb-5">
+      <div class="section-label">Ulasan</div>
+      <h2 class="section-title">Kata Pengunjung</h2>
+      <p class="section-sub">Pengalaman nyata dari keluarga yang telah berkunjung ke Sensasion</p>
+    </div>
+    <div id="ulasanApp">
+      <!-- Vue JS Component -->
+      <div class="row g-4 align-items-stretch justify-content-center">
+        <div class="col-md-4 col-sm-6 d-flex" v-for="u in ulasanList" :key="u.id">
+          <div class="ulasan-card w-100">
+            <div class="mb-2 d-flex align-items-center gap-2">
+              <span v-html="renderStars(u.rating)"></span>
+              <span style="font-size:.82rem;font-weight:700;color:var(--navy);">{{ u.rating }}/5</span>
+            </div>
+            <p class="ulasan-text">"{{ u.komen }}"</p>
+            <div v-if="u.foto" style="margin-bottom:12px;">
+              <img :src="u.foto" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;" alt="Foto ulasan" />
+            </div>
+            <div class="ulasan-author">{{ u.nama }}</div>
+            <div class="ulasan-date">{{ formatDate(u.tanggal) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORM TULIS ULASAN -->
+      <div class="mt-5">
+        <div class="ulasan-form-wrap">
+          <div v-if="!formSent">
+            <h4 class="ulasan-form-title">Tulis Ulasan Anda</h4>
+            <p class="ulasan-form-sub">Bagikan pengalaman Anda berkunjung ke Sensasion</p>
+
+            <div v-if="formError" class="ulasan-alert-error">
+              <i class="bi bi-exclamation-circle"></i> {{ formError }}
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label-sns">Nama Lengkap *</label>
+                <input v-model="formData.nama" type="text" class="form-control-sns" placeholder="Nama Anda" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label-sns">Rating (1–5) *</label>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <input
+                    v-model.number="formData.rating"
+                    type="number" min="1" max="5" step="1"
+                    class="form-control-sns"
+                    style="width:72px;"
+                    @input="clampRating"
+                  />
+                  <div style="display:flex;gap:3px;">
+                    <i
+                      v-for="n in 5" :key="n"
+                      :class="'bi ' + (n <= formData.rating ? 'bi-star-fill' : 'bi-star')"
+                      style="font-size:1.3rem;cursor:pointer;transition:color .15s;"
+                      :style="{ color: n <= formData.rating ? 'var(--gold)' : '#d1d5db' }"
+                      @click="formData.rating = n"
+                    ></i>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label-sns">Komentar *</label>
+                <textarea
+                  v-model="formData.komen"
+                  class="form-control-sns"
+                  rows="4"
+                  placeholder="Ceritakan pengalaman Anda di Sensasion..."
+                  style="resize:vertical;"
+                ></textarea>
+                <div style="font-size:.75rem;color:var(--muted);margin-top:5px;text-align:right;">
+                  {{ formData.komen.length }} / 300 karakter
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label-sns">Foto (opsional)</label>
+                <div
+                  class="foto-upload-area"
+                  @click="triggerFotoInput"
+                  @dragover.prevent
+                  @drop.prevent="onFotoDrop"
+                  :style="fotoPreview ? 'border-color:var(--teal);' : ''"
+                >
+                  <template v-if="!fotoPreview">
+                    <i class="bi bi-image" style="font-size:2rem;color:var(--muted);display:block;margin-bottom:8px;"></i>
+                    <p style="font-size:.82rem;color:var(--muted);margin:0;">Klik atau seret foto ke sini<br><span style="font-size:.75rem;opacity:.7">JPG / PNG / WEBP • Maks. 5 MB</span></p>
+                  </template>
+                  <template v-else>
+                    <img :src="fotoPreview" style="max-height:180px;max-width:100%;border-radius:10px;object-fit:contain;" alt="Preview" />
+                    <button type="button" @click.stop="hapusFoto"
+                      style="display:block;margin:10px auto 0;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:4px 14px;font-size:.78rem;font-weight:600;cursor:pointer;">
+                      <i class="bi bi-x-lg"></i> Hapus Foto
+                    </button>
+                  </template>
+                  <input ref="fotoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" @change="onFotoChange" />
+                </div>
+                <div v-if="fotoError" style="font-size:.78rem;color:#ef4444;margin-top:5px;"><i class="bi bi-exclamation-circle"></i> {{ fotoError }}</div>
+              </div>
+            </div>
+
+            <div style="margin-top:20px;">
+              <button class="btn-primary-sns" @click="submitUlasan" :disabled="submitting">
+                <span v-if="submitting"><i class="bi bi-hourglass-split"></i> Mengirim...</span>
+                <span v-else><i class="bi bi-send"></i> Kirim Ulasan</span>
+              </button>
+            </div>
+
+            <p style="font-size:.76rem;color:var(--muted);margin-top:12px;">
+              <i class="bi bi-info-circle"></i> Ulasan akan ditampilkan setelah ditinjau oleh admin.
+            </p>
+          </div>
+
+          <!-- Sukses -->
+          <div v-else class="ulasan-success">
+            <div class="ulasan-success-icon"><i class="bi bi-check-lg"></i></div>
+            <h4 style="font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:8px;">Terima Kasih!</h4>
+            <p style="color:var(--muted);font-size:.9rem;margin-bottom:18px;">
+              Ulasan Anda telah berhasil dikirim dan sedang menunggu persetujuan admin.
+            </p>
+            <button class="btn-primary-sns" @click="resetForm" style="font-size:.85rem;padding:10px 20px;">
+              <i class="bi bi-plus-lg"></i> Tulis Ulasan Lain
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section-pad" style="background:linear-gradient(135deg,var(--navy),var(--deep));">
+  <div class="container text-center">
+    <div class="section-label" style="color:var(--sky);justify-content:center;">Hubungi Kami</div>
+    <h2 class="section-title" style="color:white;margin-bottom:12px;">Siap Berlibur Bersama Keluarga?</h2>
+    <p style="color:rgba(255,255,255,.6);max-width:460px;margin:0 auto 32px;font-size:.95rem;">
+      Hubungi kami untuk informasi lebih lanjut atau buat reservasi sekarang.
+    </p>
+    <div class="d-flex gap-3 justify-content-center flex-wrap">
+      <a id="ctaWa" href="#" target="_blank" class="btn-primary-sns">
+        <i class="bi bi-whatsapp"></i> Chat WhatsApp
+      </a>
+      <a href="reservasi.html" class="btn-outline-sns">
+        <i class="bi bi-calendar-check"></i> Buat Reservasi
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<div id="footer-placeholder"></div>
+
+<!-- SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+<script src="js/data.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/main.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const s = DB.get('settings');
+
+  const ctaWa = document.getElementById('ctaWa');
+  if (ctaWa) ctaWa.href = `https://wa.me/${s.whatsapp}?text=${encodeURIComponent('Halo Sensasion, saya ingin bertanya!')}`;
+
+  
+  const grid = document.getElementById('fasilitasGrid');
+  if (grid) {
+    const list = DB.get('fasilitas').slice(0, 4);
+    grid.innerHTML = list.map(f => `
+      <div class="col-lg-3 col-md-6 col-sm-6">
+        <div class="sns-card fade-up">
+          ${f.gambar
+            ? `<img src="${f.gambar}" alt="${escHtml(f.nama_fasilitas)}" class="fasilitas-img">`
+            : `<div class="fasilitas-img-placeholder"><i class="bi bi-image"></i></div>`}
+          <div class="p-3">
+            <div class="fasilitas-name">${escHtml(f.nama_fasilitas)}</div>
+            <div class="fasilitas-desc">${escHtml(f.deskripsi)}</div>
+          </div>
+        </div>
+      </div>`).join('');
+    initFadeUp();
+  }
+
+  
+  const ctx = document.getElementById('busyChart')?.getContext('2d');
+  if (ctx) {
+    const hours = ['07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00'];
+    const data  = [0.5,0.7,1.2,1.4,1.3,2.4,2.6,2.3,1.8,1.9,2.2,2.7,2.5];
+    const colors = data.map(v => v>=2?'rgba(239,68,68,0.75)':v>=1.2?'rgba(240,180,41,0.75)':'rgba(46,181,255,0.75)');
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: hours, datasets: [{ data, backgroundColor: colors, borderRadius: 8, borderSkipped: false }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ctx.raw>=2?'Intensitas: Tinggi':ctx.raw>=1.2?'Intensitas: Sedang':'Intensitas: Rendah' } }
+        },
+        scales: {
+          x: { grid:{display:false}, ticks:{color:'#5a7a96',font:{size:11}}, border:{display:false} },
+          y: { min:0, max:3, ticks:{stepSize:1,color:'#5a7a96',font:{size:11},callback:v=>['','Rendah','Sedang','Tinggi'][v]||''}, grid:{color:'rgba(21,79,133,0.07)'}, border:{display:false} }
+        }
+      }
+    });
+  }
+
+  
+  const { createApp } = Vue;
+  createApp({
+    data() {
+      return {
+        ulasanList: DB.get('ulasan').filter(u => u.tampil),
+        formData: { nama: '', komen: '', rating: 5 },
+        formError: '',
+        fotoError: '',
+        fotoPreview: null,
+        fotoBase64: null,
+        formSent: false,
+        submitting: false,
+      };
+    },
+    methods: {
+      renderStars(r) {
+        let s = '';
+        for(let i=1;i<=5;i++) s+=`<i class="bi ${i<=r?'bi-star-fill':'bi-star'}" style="color:var(--gold);font-size:.88rem;"></i>`;
+        return s;
+      },
+      formatDate(d) {
+        return new Date(d).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+      },
+      clampRating() {
+        let v = parseInt(this.formData.rating) || 1;
+        if (v < 1) v = 1;
+        if (v > 5) v = 5;
+        this.formData.rating = v;
+      },
+      triggerFotoInput() { this.$refs.fotoInput.click(); },
+      onFotoChange(e) { this.loadFoto(e.target.files[0]); },
+      onFotoDrop(e) { this.loadFoto(e.dataTransfer.files[0]); },
+      loadFoto(file) {
+        this.fotoError = '';
+        if (!file) return;
+        const allowed = ['image/jpeg','image/png','image/webp'];
+        if (!allowed.includes(file.type)) { this.fotoError = 'Format tidak didukung. Gunakan JPG, PNG, atau WEBP.'; return; }
+        if (file.size > 5 * 1024 * 1024) { this.fotoError = 'Ukuran file terlalu besar. Maksimal 5 MB.'; return; }
+        const reader = new FileReader();
+        reader.onload = (ev) => { this.fotoPreview = ev.target.result; this.fotoBase64 = ev.target.result; };
+        reader.readAsDataURL(file);
+      },
+      hapusFoto() {
+        this.fotoPreview = null; this.fotoBase64 = null; this.fotoError = '';
+        if (this.$refs.fotoInput) this.$refs.fotoInput.value = '';
+      },
+      submitUlasan() {
+        this.formError = '';
+        const nama  = this.formData.nama.trim();
+        const komen = this.formData.komen.trim();
+        const rating = parseInt(this.formData.rating) || 0;
+
+        if (!nama)          { this.formError = 'Nama wajib diisi.'; return; }
+        if (!komen)         { this.formError = 'Komentar wajib diisi.'; return; }
+        if (komen.length < 10) { this.formError = 'Komentar minimal 10 karakter.'; return; }
+        if (rating < 1 || rating > 5) { this.formError = 'Rating harus antara 1 sampai 5.'; return; }
+
+        this.submitting = true;
+        setTimeout(() => {
+          const data = DB.get('ulasan');
+          data.push({
+            id: DB.newId('ulasan'),
+            nama,
+            komen,
+            rating,
+            foto: this.fotoBase64 || null,
+            tanggal: new Date().toISOString().split('T')[0],
+            tampil: false, // menunggu persetujuan admin
+          });
+          DB.set('ulasan', data);
+          this.submitting = false;
+          this.formSent = true;
+        }, 700);
+      },
+      resetForm() {
+        this.formData = { nama: '', komen: '', rating: 5 };
+        this.formError = '';
+        this.fotoError = '';
+        this.fotoPreview = null;
+        this.fotoBase64 = null;
+        this.formSent = false;
+        if (this.$refs.fotoInput) this.$refs.fotoInput.value = '';
+      }
+    }
+  }).mount('#ulasanApp');
+});
+</script>
+</body>
+</html>

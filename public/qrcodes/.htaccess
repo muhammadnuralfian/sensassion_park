@@ -1,0 +1,5 @@
+# Hanya izinkan akses ke file gambar PNG
+<FilesMatch "\.php$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>

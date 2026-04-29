@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reservasi — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- QR Scanner -->
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="../js/data.js"></script>
+  <script src="js/admin-layout.js"></script>
+  <style>
+    .res-table th { font-size:.78rem; font-weight:700; color:var(--muted,#5a7a96); text-transform:uppercase; letter-spacing:.06em; }
+    .res-table td { font-size:.88rem; vertical-align:middle; }
+    .status-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:30px; font-size:.75rem; font-weight:700; }
+    .status-menunggu   { background:rgba(251,191,36,.15); color:#92400e; }
+    .status-disetujui  { background:rgba(34,197,94,.12);  color:#15803d; }
+    .status-selesai    { background:rgba(12,126,196,.12); color:#0c7ec4; }
+    .status-dibatalkan { background:rgba(239,68,68,.1);   color:#991b1b; }
+
+    #scannerBox { width:100%; max-width:340px; margin:0 auto; border-radius:12px; overflow:hidden; }
+    #scannerBox video { border-radius:12px; }
+
+    .detail-card { background:var(--soft,#f4f8fd); border-radius:14px; padding:18px; }
+    .det-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(21,79,133,.1); font-size:.88rem; }
+    .det-row:last-child { border:none; }
+    .det-key { color:var(--muted,#5a7a96); font-weight:600; }
+    .det-val { color:var(--navy,#08152a); font-weight:700; text-align:right; }
+
+    .stat-pill { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:12px; font-size:.82rem; font-weight:700; }
+    .pill-total   { background:rgba(12,126,196,.1);  color:#0c7ec4; }
+    .pill-tunggu  { background:rgba(251,191,36,.15); color:#92400e; }
+    .pill-setuju  { background:rgba(34,197,94,.12);  color:#15803d; }
+
+    #qrResult { display:none; animation:fadeUp .4s ease both; }
+    #qrResult.show { display:block; }
+    @keyframes fadeUp { from { opacity:0;transform:translateY(12px); } to { opacity:1;transform:translateY(0); } }
+
+    .scan-target { border:2px dashed #0c7ec4; border-radius:14px; padding:16px; text-align:center; color:#0c7ec4; background:rgba(12,126,196,.04); }
+    .search-box { background:#fff; border:1.5px solid rgba(21,79,133,.12); border-radius:12px; padding:8px 14px; font-size:.88rem; width:100%; outline:none; transition:border-color .25s; }
+    .search-box:focus { border-color:#0c7ec4; }
+    .filter-btn { padding:7px 14px; border-radius:10px; font-size:.78rem; font-weight:600; cursor:pointer; border:1.5px solid rgba(21,79,133,.15); background:#fff; color:var(--muted,#5a7a96); transition:all .2s; }
+    .filter-btn.active { background:#0c7ec4; color:#fff; border-color:#0c7ec4; }
+  </style>
+</head>
+<body>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  renderAdminLayout('reservasi.html', 'Reservasi');
+  initReservasiPage();
+});
+
+const API = '../api/reservasi.php';
+let allData = [];
+let html5QrScanner = null;
+let scannerActive = false;
+let currentFilter = '';
+
+function initReservasiPage() {
+  loadReservasi();
+}
+
+async function loadReservasi() {
+  const c = document.getElementById('adminContent');
+  if (!c) return;
+
+  c.innerHTML = buildPageHTML();
+
+  document.getElementById('searchInput').addEventListener('input', filterTable);
+  document.getElementById('filterAll').addEventListener('click',  () => setFilter(''));
+  document.getElementById('filterTunggu').addEventListener('click',() => setFilter('menunggu'));
+  document.getElementById('filterSetuju').addEventListener('click',() => setFilter('disetujui'));
+  document.getElementById('filterSelesai').addEventListener('click',() => setFilter('selesai'));
+
+  await fetchData();
+}
+
+async function fetchData() {
+  try {
+    document.getElementById('tblBody').innerHTML =
+      '<tr><td colspan="7" class="text-center py-4" style="color:#5a7a96;"><i class="bi bi-arrow-repeat spin me-2"></i>Memuat data...</td></tr>';
+    const r = await fetch(API + '?action=list');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    allData = d.data || [];
+    updateStats();
+    renderTable(allData);
+  } catch(e) {
+    document.getElementById('tblBody').innerHTML =
+      '<tr><td colspan="7" class="text-center py-4 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Gagal memuat: '+e.message+'</td></tr>';
+  }
+}
+
+function updateStats() {
+  const total  = allData.length;
+  const tunggu = allData.filter(r=>r.status==='menunggu').length;
+  const setuju = allData.filter(r=>r.status==='disetujui').length;
+  document.getElementById('statTotal').textContent  = total;
+  document.getElementById('statTunggu').textContent = tunggu;
+  document.getElementById('statSetuju').textContent = setuju;
+}
+
+function setFilter(s) {
+  currentFilter = s;
+  ['filterAll','filterTunggu','filterSetuju','filterSelesai'].forEach(id=>{
+    document.getElementById(id).classList.remove('active');
+  });
+  const map={'':'filterAll','menunggu':'filterTunggu','disetujui':'filterSetuju','selesai':'filterSelesai'};
+  document.getElementById(map[s]||'filterAll').classList.add('active');
+  filterTable();
+}
+
+function filterTable() {
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  let filtered = allData;
+  if (currentFilter) filtered = filtered.filter(r=>r.status===currentFilter);
+  if (q) filtered = filtered.filter(r=>
+    r.nama.toLowerCase().includes(q) ||
+    r.kode_reservasi.toLowerCase().includes(q) ||
+    r.telepon.includes(q)
+  );
+  renderTable(filtered);
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tblBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5" style="color:#5a7a96;">Tidak ada data reservasi</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r=>`
+    <tr>
+      <td><code style="font-size:.82rem;background:rgba(12,126,196,.08);padding:3px 8px;border-radius:6px;color:#0c7ec4;font-weight:700;">${r.kode_reservasi}</code></td>
+      <td><div style="font-weight:700;color:var(--navy,#08152a);">${esc(r.nama)}</div>
+          <div style="font-size:.78rem;color:#5a7a96;">${esc(r.telepon)}</div></td>
+      <td>${formatTgl(r.tanggal_kunjungan)}</td>
+      <td>${r.jumlah_pengunjung} unit</td>
+      <td style="font-size:.8rem;">${esc(r.jenis_kunjungan)}</td>
+      <td><span class="status-badge status-${r.status}"><i class="bi ${statusIcon(r.status)}"></i>${statusLabel(r.status)}</span></td>
+      <td>
+        <div class="d-flex gap-1 flex-wrap">
+          <button class="btn btn-sm" style="background:rgba(12,126,196,.1);color:#0c7ec4;border:none;border-radius:8px;font-size:.75rem;"
+            onclick="showDetail('${r.kode_reservasi}')">
+            <i class="bi bi-eye"></i>
+          </button>
+          ${r.status==='menunggu'?`
+          <button class="btn btn-sm" style="background:rgba(34,197,94,.12);color:#15803d;border:none;border-radius:8px;font-size:.75rem;"
+            onclick="updateStatus('${r.kode_reservasi}','disetujui')">
+            <i class="bi bi-check"></i>
+          </button>`:''}
+          ${r.status==='disetujui'?`
+          <button class="btn btn-sm" style="background:rgba(12,126,196,.12);color:#0c7ec4;border:none;border-radius:8px;font-size:.75rem;"
+            onclick="updateStatus('${r.kode_reservasi}','selesai')">
+            <i class="bi bi-check-all"></i>
+          </button>`:''}
+          ${r.status!=='dibatalkan'&&r.status!=='selesai'?`
+          <button class="btn btn-sm" style="background:rgba(239,68,68,.1);color:#991b1b;border:none;border-radius:8px;font-size:.75rem;"
+            onclick="updateStatus('${r.kode_reservasi}','dibatalkan')">
+            <i class="bi bi-x"></i>
+          </button>`:''}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+async function updateStatus(kode, status) {
+  const labels={disetujui:'Setujui',selesai:'Tandai Selesai',dibatalkan:'Batalkan'};
+  if (!confirm('Apakah Anda yakin ingin '+labels[status]+' reservasi '+kode+'?')) return;
+  try {
+    const r = await fetch(API+'?action=update_status', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({kode, status})
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    await fetchData();
+    const det = document.getElementById('detModal');
+    if (det && det.classList.contains('show')) {
+      const modal = bootstrap.Modal.getInstance(det);
+      if (modal) modal.hide();
+    }
+  } catch(e) { alert('Gagal: '+e.message); }
+}
+
+async function showDetail(kode) {
+  try {
+    const r = await fetch(API+'?action=detail&kode='+kode);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const res = d.data;
+    document.getElementById('detBody').innerHTML = `
+      <div class="text-center mb-3">
+        ${res.qr_url?`<img src="${res.qr_url}" style="width:180px;height:180px;border-radius:12px;border:1px solid rgba(21,79,133,.1);" />`
+          :`<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent('SNS-RESERVASI:'+res.kode_reservasi)}&format=png&ecc=M&margin=10"
+              style="width:180px;height:180px;border-radius:12px;" />`}
+        <div style="font-family:'Courier New',monospace;font-size:1.2rem;font-weight:700;letter-spacing:3px;color:#08152a;margin-top:10px;">${res.kode_reservasi}</div>
+      </div>
+      <div class="detail-card">
+        <div class="det-row"><span class="det-key">Nama</span><span class="det-val">${esc(res.nama)}</span></div>
+        <div class="det-row"><span class="det-key">Telepon</span><span class="det-val">${esc(res.telepon)}</span></div>
+        <div class="det-row"><span class="det-key">Tanggal</span><span class="det-val">${formatTgl(res.tanggal_kunjungan)}</span></div>
+        <div class="det-row"><span class="det-key">Jumlah</span><span class="det-val">${res.jumlah_pengunjung} unit</span></div>
+        <div class="det-row"><span class="det-key">Jenis</span><span class="det-val">${esc(res.jenis_kunjungan)}</span></div>
+        <div class="det-row"><span class="det-key">Catatan</span><span class="det-val">${res.catatan?esc(res.catatan):'-'}</span></div>
+        <div class="det-row"><span class="det-key">Status</span><span><span class="status-badge status-${res.status}"><i class="bi ${statusIcon(res.status)}"></i>${statusLabel(res.status)}</span></span></div>
+        <div class="det-row"><span class="det-key">Dibuat</span><span class="det-val" style="font-size:.78rem;">${formatDt(res.dibuat_pada)}</span></div>
+      </div>
+      <div class="d-flex gap-2 mt-3 flex-wrap">
+        ${res.status==='menunggu'?`<button class="btn btn-sm flex-fill" style="background:rgba(34,197,94,.12);color:#15803d;border:none;border-radius:10px;font-weight:600;" onclick="updateStatus('${res.kode_reservasi}','disetujui');bootstrap.Modal.getInstance(document.getElementById('detModal')).hide()"><i class="bi bi-check-circle me-1"></i>Setujui</button>`:''}
+        ${res.status==='disetujui'?`<button class="btn btn-sm flex-fill" style="background:rgba(12,126,196,.12);color:#0c7ec4;border:none;border-radius:10px;font-weight:600;" onclick="updateStatus('${res.kode_reservasi}','selesai');bootstrap.Modal.getInstance(document.getElementById('detModal')).hide()"><i class="bi bi-check-all me-1"></i>Selesai</button>`:''}
+        ${res.status!=='dibatalkan'&&res.status!=='selesai'?`<button class="btn btn-sm" style="background:rgba(239,68,68,.1);color:#991b1b;border:none;border-radius:10px;font-weight:600;padding:6px 14px;" onclick="updateStatus('${res.kode_reservasi}','dibatalkan');bootstrap.Modal.getInstance(document.getElementById('detModal')).hide()"><i class="bi bi-x-circle me-1"></i>Batalkan</button>`:''}
+      </div>`;
+    new bootstrap.Modal(document.getElementById('detModal')).show();
+  } catch(e) { alert('Gagal memuat detail: '+e.message); }
+}
+
+function openScanner() {
+  const el = document.getElementById('scanPanel');
+  el.style.display = el.style.display==='none'?'block':'none';
+  if (el.style.display==='none') stopScanner();
+  else startScanner();
+}
+
+function startScanner() {
+  if (scannerActive) return;
+  const box = document.getElementById('scannerBox');
+  box.innerHTML='';
+  html5QrScanner = new Html5Qrcode('scannerBox');
+  html5QrScanner.start(
+    {facingMode:'environment'},
+    {fps:10, qrbox:{width:220,height:220}},
+    onScanSuccess,
+    ()=>{}
+  ).then(()=>{ scannerActive=true; })
+   .catch(err => { box.innerHTML='<p class="text-danger small">Kamera tidak tersedia: '+err+'</p>'; });
+}
+
+function stopScanner() {
+  if (html5QrScanner && scannerActive) {
+    html5QrScanner.stop().then(()=>{ scannerActive=false; html5QrScanner.clear(); });
+  }
+}
+
+async function onScanSuccess(decoded) {
+  let kode = decoded.replace(/^SNS-RESERVASI:/i,'').trim();
+  stopScanner();
+  document.getElementById('scanPanel').style.display='none';
+  document.getElementById('manualKode').value=kode;
+  await searchByKode(kode);
+}
+
+async function searchByKode(kode) {
+  kode = (kode||document.getElementById('manualKode').value).trim().toUpperCase();
+  const res = document.getElementById('qrResult');
+  if (!kode) { alert('Masukkan kode reservasi'); return; }
+  res.classList.remove('show');
+  try {
+    const r = await fetch(API+'?action=detail&kode='+kode);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const rv = d.data;
+    document.getElementById('qrResultBody').innerHTML=`
+      <div class="detail-card">
+        <div class="text-center mb-3">
+          <span class="status-badge status-${rv.status}" style="font-size:.85rem;padding:7px 18px;">
+            <i class="bi ${statusIcon(rv.status)}"></i> ${statusLabel(rv.status)}
+          </span>
+        </div>
+        <div class="det-row"><span class="det-key">Kode</span><span class="det-val" style="font-family:'Courier New';letter-spacing:2px;">${rv.kode_reservasi}</span></div>
+        <div class="det-row"><span class="det-key">Nama</span><span class="det-val">${esc(rv.nama)}</span></div>
+        <div class="det-row"><span class="det-key">Telepon</span><span class="det-val">${esc(rv.telepon)}</span></div>
+        <div class="det-row"><span class="det-key">Tanggal</span><span class="det-val">${formatTgl(rv.tanggal_kunjungan)}</span></div>
+        <div class="det-row"><span class="det-key">Jumlah</span><span class="det-val">${rv.jumlah_pengunjung} unit</span></div>
+        <div class="det-row"><span class="det-key">Jenis</span><span class="det-val">${esc(rv.jenis_kunjungan)}</span></div>
+      </div>
+      <div class="d-flex gap-2 mt-3 flex-wrap">
+        ${rv.status==='menunggu'?`<button class="btn btn-sm flex-fill" style="background:#22c55e;color:#fff;border:none;border-radius:10px;font-weight:600;" onclick="updateStatus('${rv.kode_reservasi}','disetujui').then(()=>searchByKode('${rv.kode_reservasi}'))"><i class="bi bi-check-circle me-1"></i>Setujui</button>`:''}
+        ${rv.status==='disetujui'?`<button class="btn btn-sm flex-fill" style="background:#0c7ec4;color:#fff;border:none;border-radius:10px;font-weight:600;" onclick="updateStatus('${rv.kode_reservasi}','selesai').then(()=>searchByKode('${rv.kode_reservasi}'))"><i class="bi bi-check-all me-1"></i>Tandai Selesai</button>`:''}
+        <button class="btn btn-sm flex-fill" onclick="showDetail('${rv.kode_reservasi}')" style="background:rgba(12,126,196,.1);color:#0c7ec4;border:none;border-radius:10px;font-weight:600;"><i class="bi bi-eye me-1"></i>Lihat Detail</button>
+      </div>`;
+    res.classList.add('show');
+  } catch(e) {
+    document.getElementById('qrResultBody').innerHTML=`<div class="text-center py-3"><i class="bi bi-x-circle text-danger" style="font-size:2rem;"></i><p class="text-danger mt-2 fw-bold">${e.message}</p></div>`;
+    res.classList.add('show');
+  }
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function formatTgl(s) {
+  if(!s) return '—';
+  const [y,m,d]=s.split('-');
+  const bln=['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  return parseInt(d)+' '+bln[parseInt(m)]+' '+y;
+}
+function formatDt(s) { if(!s) return '—'; return s.replace('T',' ').substring(0,16); }
+function statusIcon(s){return{menunggu:'bi-clock-history',disetujui:'bi-check-circle',selesai:'bi-check-all',dibatalkan:'bi-x-circle'}[s]||'bi-question';}
+function statusLabel(s){return{menunggu:'Menunggu',disetujui:'Disetujui',selesai:'Selesai',dibatalkan:'Dibatalkan'}[s]||s;}
+function buildPageHTML() {
+  return `
+  <!-- Stats -->
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <span class="stat-pill pill-total"><i class="bi bi-calendar-check"></i> Total: <strong id="statTotal">—</strong></span>
+    <span class="stat-pill pill-tunggu"><i class="bi bi-clock-history"></i> Menunggu: <strong id="statTunggu">—</strong></span>
+    <span class="stat-pill pill-setuju"><i class="bi bi-check-circle"></i> Disetujui: <strong id="statSetuju">—</strong></span>
+  </div>
+
+  <!-- Scan QR Panel (collapsible) -->
+  <div class="admin-table-wrap p-3 mb-4">
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+      <h6 style="font-weight:700;color:var(--navy,#08152a);margin:0;"><i class="bi bi-qr-code-scan me-2 text-primary"></i>Verifikasi Reservasi</h6>
+      <button class="btn btn-sm ms-auto" onclick="openScanner()"
+        style="background:linear-gradient(135deg,#0c7ec4,#2eb5ff);color:#fff;border:none;border-radius:10px;font-size:.8rem;font-weight:600;padding:7px 16px;">
+        <i class="bi bi-camera"></i> Scan QR Kamera
+      </button>
+    </div>
+
+    <!-- Kamera scanner -->
+    <div id="scanPanel" style="display:none;" class="mb-3">
+      <div class="scan-target mb-2"><i class="bi bi-viewfinder"></i> Arahkan kamera ke QR Code reservasi</div>
+      <div id="scannerBox"></div>
+      <button class="btn btn-sm w-100 mt-2" onclick="stopScanner();document.getElementById('scanPanel').style.display='none'"
+        style="background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:.8rem;">
+        <i class="bi bi-x-circle"></i> Tutup Kamera
+      </button>
+    </div>
+
+    <!-- Input manual -->
+    <div class="d-flex gap-2">
+      <input id="manualKode" type="text" class="search-box" placeholder="Masukkan kode reservasi manual (contoh: SNS260427ABCDE)"
+        style="flex:1;font-family:'Courier New',monospace;letter-spacing:1px;text-transform:uppercase;"
+        onkeyup="if(event.key==='Enter')searchByKode()" />
+      <button onclick="searchByKode()"
+        style="background:linear-gradient(135deg,#0c7ec4,#2eb5ff);color:#fff;border:none;border-radius:12px;padding:9px 18px;font-weight:600;font-size:.85rem;cursor:pointer;">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+
+    <!-- Hasil scan/manual -->
+    <div id="qrResult" class="mt-3">
+      <div id="qrResultBody"></div>
+    </div>
+  </div>
+
+  <!-- Filter & Search -->
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <input id="searchInput" type="text" class="search-box" placeholder="Cari nama, kode, telepon..." style="flex:1;min-width:180px;" />
+    <button id="filterAll"    class="filter-btn active" onclick="">Semua</button>
+    <button id="filterTunggu" class="filter-btn" onclick="">Menunggu</button>
+    <button id="filterSetuju" class="filter-btn" onclick="">Disetujui</button>
+    <button id="filterSelesai"class="filter-btn" onclick="">Selesai</button>
+    <button onclick="fetchData()" style="background:rgba(12,126,196,.1);color:#0c7ec4;border:none;border-radius:10px;padding:7px 14px;font-size:.8rem;font-weight:600;cursor:pointer;">
+      <i class="bi bi-arrow-repeat"></i>
+    </button>
+  </div>
+
+  <!-- Table -->
+  <div class="admin-table-wrap" style="overflow-x:auto;">
+    <table class="table res-table mb-0" style="min-width:700px;">
+      <thead><tr>
+        <th>Kode</th><th>Nama / Telepon</th><th>Tanggal</th><th>Jumlah</th><th>Jenis</th><th>Status</th><th>Aksi</th>
+      </tr></thead>
+      <tbody id="tblBody"><tr><td colspan="7" class="text-center py-4" style="color:#5a7a96;">Memuat...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="modal fade" id="detModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="border-radius:20px;border:none;">
+        <div class="modal-header" style="border-bottom:1px solid rgba(21,79,133,.1);padding:18px 22px;">
+          <h6 class="modal-title" style="font-weight:700;color:var(--navy,#08152a);">
+            <i class="bi bi-calendar-check text-primary me-2"></i>Detail Reservasi
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4" id="detBody"></div>
+      </div>
+    </div>
+  </div>`;
+}
+</script>
+</body>
+</html>

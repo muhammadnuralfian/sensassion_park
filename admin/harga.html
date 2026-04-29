@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Harga — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <link rel="stylesheet" href="css/admin.css" />
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="js/admin-layout.js"></script>
+  </head>
+  <body>
+    <script>
+      let currentEditId = null;
+
+      document.addEventListener("DOMContentLoaded", () => {
+        renderAdminLayout("harga.html", "Manajemen Harga");
+        renderPage();
+      });
+
+      function renderPage() {
+        const list = DB.get("harga");
+        const rows =
+          list.length === 0
+            ? `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:40px;">Belum ada data harga.</td></tr>`
+            : list
+                .map(
+                  (h) => `
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              ${h.gambar ? `<img src="${escHtml(h.gambar)}" alt="${escHtml(h.nama)}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0;" />` : `<div style="width:40px;height:40px;border-radius:8px;background:rgba(12,126,196,.08);display:flex;align-items:center;justify-content:center;color:rgba(12,126,196,.4);font-size:1.2rem;flex-shrink:0;"><i class="bi bi-image"></i></div>`}
+              <span style="font-weight:600;color:var(--navy);">${escHtml(h.nama)}</span>
+            </div>
+          </td>
+          <td style="font-weight:700;color:var(--teal);white-space:nowrap;">${formatRupiah(h.harga)}</td>
+          <td style="color:var(--muted);font-size:.83rem;">${escHtml(h.satuan)}</td>
+          <td style="color:var(--muted);font-size:.83rem;">${escHtml(h.catatan)}</td>
+          <td>
+            <button onclick="toggleAktif(${h.id})" class="${h.aktif ? "badge-aktif" : "badge-nonaktif"}">
+              ${h.aktif ? "Aktif" : "Nonaktif"}
+            </button>
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <button class="btn-edit" onclick="openEdit(${h.id})"><i class="bi bi-pencil"></i> Edit</button>
+              <button class="btn-del" onclick="confirmDelete(${h.id},'${escHtml(h.nama)}')"><i class="bi bi-trash"></i></button>
+            </div>
+          </td>
+        </tr>`,
+                )
+                .join("");
+
+        document.getElementById("adminContent").innerHTML = `
+    <div class="page-actions">
+      <div><h2 class="page-title">Manajemen Harga</h2><p class="page-sub">Kelola daftar harga tiket dan layanan</p></div>
+      <button class="btn-add" onclick="openAdd()"><i class="bi bi-plus-lg"></i> Tambah Harga</button>
+    </div>
+    <div class="admin-table-wrap" style="overflow-x:auto;">
+      <table class="admin-table">
+        <thead>
+          <tr><th>Nama</th><th>Harga</th><th>Satuan</th><th>Catatan</th><th style="width:90px">Status</th><th style="width:140px">Aksi</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+      }
+
+      function openAdd() {
+        currentEditId = null;
+        showModal("Tambah Harga", {
+          nama: "",
+          harga: 0,
+          satuan: "per orang",
+          catatan: "",
+          gambar: "",
+          aktif: true,
+        });
+      }
+
+      function openEdit(id) {
+        const h = DB.get("harga").find((x) => x.id === id);
+        if (!h) return;
+        currentEditId = id;
+        showModal("Edit Harga", h);
+      }
+
+      function showModal(title, h) {
+        const currentImg = h.gambar || "";
+        const previewHtml = currentImg
+          ? `<img id="hGambarPreview" src="${escHtml(currentImg)}" alt="Preview" style="width:100%;height:140px;object-fit:cover;border-radius:10px;display:block;margin-bottom:8px;" />`
+          : `<div id="hGambarPreview" style="width:100%;height:140px;border-radius:10px;background:var(--soft);border:2px dashed rgba(12,126,196,.2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.83rem;margin-bottom:8px;flex-direction:column;gap:6px;"><i class="bi bi-image" style="font-size:1.8rem;"></i>Belum ada gambar</div>`;
+
+        openModal(`
+    <div class="modal-box">
+      <div class="modal-title">${title}</div>
+      <div class="form-group">
+        <label class="form-label">Nama Tiket/Layanan *</label>
+        <input id="hNama" class="form-control" type="text" value="${escHtml(h.nama)}" placeholder="contoh: Gazebo" />
+      </div>
+      <div class="row g-3" style="margin-bottom:0;">
+        <div class="col-6">
+          <div class="form-group">
+            <label class="form-label">Harga (Rp)</label>
+            <input id="hHarga" class="form-control" type="number" value="${h.harga || 0}" min="0" />
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="form-group">
+            <label class="form-label">Satuan</label>
+            <input id="hSatuan" class="form-control" type="text" value="${escHtml(h.satuan)}" placeholder="per orang" />
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Catatan</label>
+        <input id="hCatatan" class="form-control" type="text" value="${escHtml(h.catatan)}" placeholder="Catatan tambahan" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gambar Latar Card</label>
+        ${previewHtml}
+        <label for="hGambarFile" style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:rgba(12,126,196,.07);border:1.5px dashed rgba(12,126,196,.3);border-radius:10px;cursor:pointer;color:var(--teal);font-weight:600;font-size:.84rem;width:100%;">
+          <i class="bi bi-upload"></i>
+          <span id="hGambarFileName">Pilih gambar (JPEG, PNG, atau WEBP, maks. 5 MB)</span>
+        </label>
+        <input type="file" id="hGambarFile" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="previewHargaGambar(this)" />
+        <input type="hidden" id="hGambarData" value="${escHtml(currentImg)}" />
+        <small style="color:var(--muted);font-size:.73rem;margin-top:4px;display:block;">Biarkan kosong untuk mempertahankan gambar saat ini</small>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Batal</button>
+        <button class="btn-save" onclick="saveHarga()"><i class="bi bi-check-lg"></i> Simpan</button>
+      </div>
+    </div>`);
+      }
+
+      function previewHargaGambar(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        
+        if (file.size > 5 * 1024 * 1024) {
+          alert("Ukuran gambar terlalu besar. Maksimum 5 MB.");
+          input.value = "";
+          return;
+        }
+        
+        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+          alert("Format tidak didukung. Gunakan JPEG, PNG, atau WEBP.");
+          input.value = "";
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64 = e.target.result;
+          document.getElementById("hGambarData").value = base64;
+          document.getElementById("hGambarFileName").textContent = file.name;
+
+          
+          const prev = document.getElementById("hGambarPreview");
+          if (prev.tagName === "IMG") {
+            prev.src = base64;
+          } else {
+            const img = document.createElement("img");
+            img.id = "hGambarPreview";
+            img.src = base64;
+            img.alt = "Preview";
+            img.style.cssText =
+              "width:100%;height:140px;object-fit:cover;border-radius:10px;display:block;margin-bottom:8px;";
+            prev.replaceWith(img);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function saveHarga() {
+        const nama = document.getElementById("hNama")?.value.trim();
+        const harga = parseInt(document.getElementById("hHarga")?.value) || 0;
+        const satuan = document.getElementById("hSatuan")?.value.trim();
+        const catatan = document.getElementById("hCatatan")?.value.trim();
+        const gambar = document.getElementById("hGambarData")?.value || "";
+        if (!nama) {
+          showAdminAlert("Nama wajib diisi.", "error");
+          return;
+        }
+
+        const data = DB.get("harga");
+        if (currentEditId !== null) {
+          const idx = data.findIndex((h) => h.id === currentEditId);
+          if (idx !== -1)
+            Object.assign(data[idx], { nama, harga, satuan, catatan, gambar });
+          showAdminAlert("Harga berhasil diperbarui.");
+        } else {
+          data.push({
+            id: DB.newId("harga"),
+            nama,
+            harga,
+            satuan,
+            catatan,
+            gambar,
+            aktif: true,
+          });
+          showAdminAlert("Harga berhasil ditambahkan.");
+        }
+        DB.set("harga", data);
+        closeModal();
+        renderPage();
+      }
+
+      function toggleAktif(id) {
+        const data = DB.get("harga");
+        const idx = data.findIndex((h) => h.id === id);
+        if (idx !== -1) data[idx].aktif = !data[idx].aktif;
+        DB.set("harga", data);
+        renderPage();
+      }
+
+      function confirmDelete(id, nama) {
+        openModal(`
+    <div class="modal-box" style="max-width:400px;">
+      <div class="modal-title" style="color:#ef4444;">Hapus Harga?</div>
+      <p style="color:var(--muted);margin-bottom:22px;">Yakin hapus <strong style="color:var(--navy);">${escHtml(nama)}</strong>?</p>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Batal</button>
+        <button class="btn-danger-solid" onclick="doDelete(${id})"><i class="bi bi-trash"></i> Hapus</button>
+      </div>
+    </div>`);
+      }
+
+      function doDelete(id) {
+        DB.set(
+          "harga",
+          DB.get("harga").filter((h) => h.id !== id),
+        );
+        showAdminAlert("Harga berhasil dihapus.");
+        closeModal();
+        renderPage();
+      }
+    </script>
+  </body>
+</html>

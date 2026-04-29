@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Event — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <link rel="stylesheet" href="css/admin.css" />
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="js/admin-layout.js"></script>
+  </head>
+  <body>
+    <script>
+      let currentEditId = null;
+
+      document.addEventListener("DOMContentLoaded", () => {
+        renderAdminLayout("event.html", "Manajemen Event");
+        renderPage();
+      });
+
+      function renderPage() {
+        const list = DB.get("event");
+
+        const rows =
+          list.length === 0
+            ? `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:40px;">Belum ada event.</td></tr>`
+            : list
+                .map(
+                  (ev) => `
+        <tr>
+          <td style="font-weight:600;color:var(--navy);">
+            <i class="bi ${escHtml(ev.icon)}" style="color:var(--sky);margin-right:7px;"></i>${escHtml(ev.nama)}
+          </td>
+          <td style="color:var(--muted);font-size:.84rem;max-width:240px;">
+            ${escHtml(ev.deskripsi?.slice(0, 70))}${ev.deskripsi?.length > 70 ? "..." : ""}
+          </td>
+          <td style="font-size:.83rem;color:var(--muted);">${escHtml(ev.jadwal)}</td>
+          <td style="font-weight:700;color:var(--teal);white-space:nowrap;">
+            ${ev.biaya > 0 ? formatRupiah(ev.biaya) : '<span style="color:#166534;font-weight:600;">Gratis</span>'}
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <button class="btn-edit" onclick="openEdit(${ev.id})"><i class="bi bi-pencil"></i> Edit</button>
+              <button class="btn-del" onclick="confirmDelete(${ev.id},'${escHtml(ev.nama)}')"><i class="bi bi-trash"></i></button>
+            </div>
+          </td>
+        </tr>`,
+                )
+                .join("");
+
+        document.getElementById("adminContent").innerHTML = `
+    <div class="page-actions">
+      <div><h2 class="page-title">Manajemen Event</h2><p class="page-sub">Kelola event dan aktivitas yang tersedia</p></div>
+      <button class="btn-add" onclick="openAdd()"><i class="bi bi-plus-lg"></i> Tambah Event</button>
+    </div>
+    <div class="admin-table-wrap" style="overflow-x:auto;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Nama Event</th><th>Deskripsi</th><th>Jadwal</th><th>Biaya</th><th style="width:140px">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+      }
+
+      function openAdd() {
+        currentEditId = null;
+        showModal("Tambah Event", {
+          nama: "",
+          deskripsi: "",
+          jadwal: "",
+          biaya: 0,
+          icon: "bi-calendar-event",
+        });
+      }
+
+      function openEdit(id) {
+        const ev = DB.get("event").find((e) => e.id === id);
+        if (!ev) return;
+        currentEditId = id;
+        showModal("Edit Event", ev);
+      }
+
+      function showModal(title, ev) {
+        openModal(`
+    <div class="modal-box">
+      <div class="modal-title">${title}</div>
+      <div class="form-group">
+        <label class="form-label">Nama Event *</label>
+        <input id="evNama" class="form-control" type="text" value="${escHtml(ev.nama)}" placeholder="Nama event" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Deskripsi</label>
+        <textarea id="evDesk" class="form-control" rows="3" placeholder="Deskripsi singkat...">${escHtml(ev.deskripsi)}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jadwal</label>
+        <input id="evJadwal" class="form-control" type="text" value="${escHtml(ev.jadwal)}" placeholder="contoh: Setiap Sabtu" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Biaya (Rp) — isi 0 untuk Gratis</label>
+        <input id="evBiaya" class="form-control" type="number" value="${ev.biaya || 0}" min="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Icon Bootstrap Icons</label>
+        <input id="evIcon" class="form-control" type="text" value="${escHtml(ev.icon || "bi-calendar-event")}" placeholder="contoh: bi-trophy" />
+        <small style="color:var(--muted);font-size:.76rem;">Lihat icon di: icons.getbootstrap.com</small>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Batal</button>
+        <button class="btn-save" onclick="saveEvent()"><i class="bi bi-check-lg"></i> Simpan</button>
+      </div>
+    </div>`);
+      }
+
+      function saveEvent() {
+        const nama = document.getElementById("evNama")?.value.trim();
+        const desk = document.getElementById("evDesk")?.value.trim();
+        const jadwal = document.getElementById("evJadwal")?.value.trim();
+        const biaya = parseInt(document.getElementById("evBiaya")?.value) || 0;
+        const icon =
+          document.getElementById("evIcon")?.value.trim() ||
+          "bi-calendar-event";
+
+        if (!nama) {
+          showAdminAlert("Nama event wajib diisi.", "error");
+          return;
+        }
+
+        const data = DB.get("event");
+        if (currentEditId !== null) {
+          const idx = data.findIndex((e) => e.id === currentEditId);
+          if (idx !== -1)
+            Object.assign(data[idx], {
+              nama,
+              deskripsi: desk,
+              jadwal,
+              biaya,
+              icon,
+            });
+          showAdminAlert("Event berhasil diperbarui.");
+        } else {
+          data.push({
+            id: DB.newId("event"),
+            nama,
+            deskripsi: desk,
+            jadwal,
+            biaya,
+            icon,
+            status: "aktif",
+          });
+          showAdminAlert("Event berhasil ditambahkan.");
+        }
+        DB.set("event", data);
+        closeModal();
+        renderPage();
+      }
+
+      function confirmDelete(id, nama) {
+        openModal(`
+    <div class="modal-box" style="max-width:400px;">
+      <div class="modal-title" style="color:#ef4444;">Hapus Event?</div>
+      <p style="color:var(--muted);margin-bottom:22px;">Yakin hapus event <strong style="color:var(--navy);">${escHtml(nama)}</strong>?</p>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Batal</button>
+        <button class="btn-danger-solid" onclick="doDelete(${id})"><i class="bi bi-trash"></i> Hapus</button>
+      </div>
+    </div>`);
+      }
+
+      function doDelete(id) {
+        DB.set(
+          "event",
+          DB.get("event").filter((e) => e.id !== id),
+        );
+        showAdminAlert("Event berhasil dihapus.");
+        closeModal();
+        renderPage();
+      }
+    </script>
+  </body>
+</html>

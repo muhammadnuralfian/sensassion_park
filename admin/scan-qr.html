@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scan QR — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="js/admin-layout.js"></script>
+  <style>
+    #qrResult { display:none; animation: fadeUp .4s ease both; }
+    #qrResult.show { display:block; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+    .scanner-frame {
+      position: relative; width: 100%; max-width: 340px; margin: 0 auto;
+      border-radius: 18px; overflow: hidden;
+      box-shadow: 0 0 0 3px rgba(12,126,196,0.3), 0 0 0 6px rgba(12,126,196,0.1);
+    }
+    .scanner-frame #scannerBox { border-radius: 18px; overflow: hidden; }
+    .scanner-overlay {
+      position: absolute; inset: 0; pointer-events: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .scan-crosshair {
+      width: 160px; height: 160px; position: relative;
+    }
+    .scan-crosshair::before, .scan-crosshair::after,
+    .scan-crosshair span::before, .scan-crosshair span::after {
+      content: ''; position: absolute; width: 28px; height: 28px;
+      border-color: var(--sky); border-style: solid;
+    }
+    .scan-crosshair::before { top:0; left:0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .scan-crosshair::after  { top:0; right:0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+    .scan-crosshair span::before { bottom:0; left:0; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+    .scan-crosshair span::after  { bottom:0; right:0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+    .scan-line {
+      position: absolute; left: 16px; right: 16px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--sky), transparent);
+      animation: scanMove 2s ease-in-out infinite;
+      top: 16px;
+    }
+    @keyframes scanMove { 0%,100%{top:16px;opacity:0} 10%{opacity:1} 90%{opacity:1} 50%{top:calc(100% - 16px)} }
+    .det-row { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(21,79,133,.1); font-size:.87rem; }
+    .det-row:last-child { border:none; }
+    .det-key { color:var(--muted); font-weight:600; }
+    .det-val { color:var(--navy); font-weight:700; text-align:right; }
+    .status-badge { display:inline-flex; align-items:center; gap:5px; padding:5px 14px; border-radius:30px; font-size:.78rem; font-weight:700; }
+    .status-menunggu   { background:rgba(251,191,36,.15); color:#92400e; }
+    .status-disetujui  { background:rgba(34,197,94,.12);  color:#15803d; }
+    .status-selesai    { background:rgba(12,126,196,.12); color:#0c7ec4; }
+    .status-dibatalkan { background:rgba(239,68,68,.1);   color:#991b1b; }
+    .pulse-ring {
+      width: 90px; height: 90px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--teal), var(--sky));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; color: white; margin: 0 auto 20px;
+      position: relative;
+    }
+    .pulse-ring::before {
+      content: ''; position: absolute;
+      width: 100%; height: 100%; border-radius: 50%;
+      background: rgba(12,126,196,0.3);
+      animation: pulseRing 2s ease-out infinite;
+    }
+    @keyframes pulseRing { 0%{transform:scale(1);opacity:.8} 100%{transform:scale(1.7);opacity:0} }
+  </style>
+</head>
+<body>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  renderAdminLayout('scan-qr.html', 'Scan QR Reservasi');
+  buildScanPage();
+});
+
+const API = '../api/reservasi.php';
+let html5QrScanner = null;
+let scannerActive  = false;
+let lastScanned    = '';
+
+function buildScanPage() {
+  document.getElementById('adminContent').innerHTML = `
+    <div class="row g-4">
+
+      <!-- Kolom Kiri: Scanner + Manual -->
+      <div class="col-lg-5">
+        <!-- Scanner Card -->
+        <div class="admin-table-wrap p-4 mb-4">
+          <div style="text-align:center;margin-bottom:20px">
+            <div class="pulse-ring"><i class="bi bi-qr-code-scan"></i></div>
+            <h5 style="font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:6px">Scan QR Code</h5>
+            <p style="font-size:.83rem;color:var(--muted)">Arahkan kamera ke QR Code reservasi</p>
+          </div>
+
+          <div class="scanner-frame" id="scannerWrap" style="display:none">
+            <div id="scannerBox"></div>
+            <div class="scanner-overlay">
+              <div class="scan-crosshair"><span></span></div>
+              <div class="scan-line"></div>
+            </div>
+          </div>
+
+          <div id="scannerPlaceholder" style="text-align:center;padding:20px 0">
+            <div style="width:120px;height:120px;margin:0 auto 16px;border:2px dashed rgba(12,126,196,.25);border-radius:16px;display:flex;align-items:center;justify-content:center;color:rgba(12,126,196,.4);font-size:3rem">
+              <i class="bi bi-camera-video"></i>
+            </div>
+            <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px">Kamera belum aktif</p>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button id="btnStartScan" class="btn-add" style="flex:1;justify-content:center" onclick="startScanner()">
+              <i class="bi bi-camera-video"></i> Aktifkan Kamera
+            </button>
+            <button id="btnStopScan" class="btn-cancel" style="display:none;flex:1;text-align:center" onclick="stopScanner()">
+              <i class="bi bi-stop-circle"></i> Stop
+            </button>
+          </div>
+        </div>
+
+        <!-- Manual Input -->
+        <div class="admin-table-wrap p-4">
+          <h6 style="font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:14px"><i class="bi bi-keyboard" style="color:var(--teal);margin-right:6px"></i>Cari Manual</h6>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="manualKode" class="search-box" placeholder="Kode reservasi..." 
+              oninput="this.value=this.value.toUpperCase()"
+              onkeydown="if(event.key==='Enter') searchManual()" style="flex:1" />
+            <button class="btn-add" onclick="searchManual()" style="flex-shrink:0;white-space:nowrap">
+              <i class="bi bi-search"></i> Cari
+            </button>
+          </div>
+          <p style="font-size:.75rem;color:var(--muted);margin-top:8px">Contoh: SNS260428XXXXX</p>
+        </div>
+      </div>
+
+      <!-- Kolom Kanan: Hasil -->
+      <div class="col-lg-7">
+        <div id="qrResult">
+          <!-- diisi dinamis -->
+        </div>
+        <div id="qrPlaceholder" style="text-align:center;padding:60px 20px">
+          <div style="width:100px;height:100px;margin:0 auto 18px;background:rgba(12,126,196,0.06);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.8rem;color:rgba(12,126,196,.3)">
+            <i class="bi bi-receipt"></i>
+          </div>
+          <h6 style="font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:8px">Belum Ada Data</h6>
+          <p style="font-size:.85rem;color:var(--muted)">Scan QR atau masukkan kode reservasi untuk melihat detail</p>
+        </div>
+      </div>
+
+    </div>`;
+}
+
+function startScanner() {
+  if (scannerActive) return;
+  document.getElementById('scannerPlaceholder').style.display = 'none';
+  document.getElementById('scannerWrap').style.display = 'block';
+  document.getElementById('btnStartScan').style.display = 'none';
+  document.getElementById('btnStopScan').style.display = 'block';
+
+  html5QrScanner = new Html5Qrcode('scannerBox');
+  html5QrScanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 200, height: 200 } },
+    (decodedText) => {
+
+      let kode = decodedText.trim();
+      if (kode.includes('SNS-RESERVASI:')) kode = kode.split('SNS-RESERVASI:').pop().trim();
+      else if (kode.includes('kode=')) kode = new URLSearchParams(kode.split('?')[1] || '').get('kode') || kode;
+      kode = kode.replace(/[^A-Z0-9]/g, '').toUpperCase();
+      if (kode.length < 5) return; 
+      if (kode === lastScanned) return;
+      lastScanned = kode;
+      stopScanner();
+      fetchDetail(kode);
+    },
+    () => {}
+  ).catch(err => {
+    stopScanner();
+    showPlaceholder('Kamera tidak dapat diakses. Pastikan izin kamera sudah diberikan.');
+  });
+  scannerActive = true;
+}
+
+function stopScanner() {
+  if (!scannerActive) return;
+  html5QrScanner?.stop().then(() => {
+    html5QrScanner.clear();
+    html5QrScanner = null;
+  }).catch(() => {});
+  scannerActive = false;
+  document.getElementById('scannerPlaceholder').style.display = 'block';
+  document.getElementById('scannerWrap').style.display = 'none';
+  document.getElementById('btnStartScan').style.display = 'flex';
+  document.getElementById('btnStopScan').style.display = 'none';
+}
+
+function searchManual() {
+  const kode = document.getElementById('manualKode').value.trim().toUpperCase();
+  if (!kode) return;
+  lastScanned = kode;
+  fetchDetail(kode);
+}
+
+async function fetchDetail(kode) {
+  showResultLoading(kode);
+  try {
+    const res  = await fetch(`${API}?action=scan&kode=${encodeURIComponent(kode)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    renderDetail(data.data);
+  } catch(e) {
+    showResultError(e.message);
+  }
+}
+
+function showResultLoading(kode) {
+  document.getElementById('qrPlaceholder').style.display = 'none';
+  document.getElementById('qrResult').classList.add('show');
+  document.getElementById('qrResult').innerHTML = `
+    <div class="admin-table-wrap p-4" style="text-align:center">
+      <div style="width:36px;height:36px;border-radius:50%;border:3px solid rgba(12,126,196,.15);border-top-color:#0c7ec4;animation:spin .8s linear infinite;margin:0 auto 12px"></div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+      <p style="font-size:.87rem;color:var(--muted)">Mencari kode: <strong>${kode}</strong></p>
+    </div>`;
+}
+
+function showResultError(msg) {
+  document.getElementById('qrResult').innerHTML = `
+    <div class="admin-table-wrap p-4" style="text-align:center">
+      <div style="font-size:2.5rem;color:#ef4444;margin-bottom:10px"><i class="bi bi-x-circle"></i></div>
+      <h6 style="color:#991b1b;margin-bottom:6px">Reservasi Tidak Ditemukan</h6>
+      <p style="font-size:.83rem;color:var(--muted)">${msg}</p>
+      <button class="btn-cancel" onclick="resetResult()" style="margin-top:12px">
+        <i class="bi bi-arrow-counterclockwise"></i> Coba Lagi
+      </button>
+    </div>`;
+}
+
+function renderDetail(r) {
+  const statusMap = {
+    menunggu:   { label:'Menunggu',  cls:'status-menunggu',   icon:'bi-clock-history' },
+    disetujui:  { label:'Disetujui', cls:'status-disetujui',  icon:'bi-check-circle-fill' },
+    selesai:    { label:'Selesai',   cls:'status-selesai',    icon:'bi-check-all' },
+    dibatalkan: { label:'Dibatalkan',cls:'status-dibatalkan', icon:'bi-x-circle-fill' },
+  };
+  const s = statusMap[r.status] || statusMap.menunggu;
+  const tgl = new Date(r.tanggal_kunjungan + 'T00:00:00').toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const dibuat = new Date(r.dibuat_pada).toLocaleString('id-ID');
+
+  const allowUpdate = r.status === 'menunggu' || r.status === 'disetujui';
+
+  document.getElementById('qrResult').innerHTML = `
+    <div class="admin-table-wrap" style="overflow:hidden">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,var(--navy),#0d2144);padding:22px 26px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:.72rem;color:rgba(255,255,255,.5);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px"># ${r.kode_reservasi}</div>
+          <div style="font-family:'Playfair Display',serif;font-size:1.35rem;color:white;font-weight:700">${r.nama}</div>
+          <div style="margin-top:8px"><span class="status-badge ${s.cls}"><i class="bi ${s.icon}"></i>${s.label}</span></div>
+        </div>
+        ${r.qr_url
+          ? `<img src="${r.qr_url}" alt="QR" style="width:90px;height:90px;border-radius:12px;background:white;padding:4px" onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent('SNS-RESERVASI:${r.kode_reservasi}')+'&format=png&ecc=M&margin=10'">`
+          : `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent('SNS-RESERVASI:'+r.kode_reservasi)}&format=png&ecc=M&margin=10" alt="QR" style="width:90px;height:90px;border-radius:12px;background:white;padding:4px">`
+        }
+      </div>
+
+      <!-- Detail -->
+      <div style="padding:22px 26px">
+        <div class="det-row"><span class="det-key"><i class="bi bi-calendar3"></i> Tanggal Kunjungan</span><span class="det-val">${tgl}</span></div>
+        <div class="det-row"><span class="det-key"><i class="bi bi-grid"></i> Jumlah Gazebo</span><span class="det-val">${r.jumlah_pengunjung} unit</span></div>
+        <div class="det-row"><span class="det-key"><i class="bi bi-tag"></i> Jenis Kunjungan</span><span class="det-val">${r.jenis_kunjungan}</span></div>
+        <div class="det-row"><span class="det-key"><i class="bi bi-phone"></i> Telepon</span><span class="det-val">${r.telepon}</span></div>
+        <div class="det-row"><span class="det-key"><i class="bi bi-clock"></i> Dibuat</span><span class="det-val" style="font-size:.8rem">${dibuat}</span></div>
+        ${r.catatan ? `<div class="det-row"><span class="det-key"><i class="bi bi-chat-left-text"></i> Catatan</span><span class="det-val">${r.catatan}</span></div>` : ''}
+
+        
+        ${allowUpdate ? `
+        <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
+          <p style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Update Status</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${r.status === 'menunggu' ? `
+              <button class="btn-add" style="background:linear-gradient(135deg,#22c55e,#4ade80)" onclick="updateStatus('${r.kode_reservasi}','disetujui')">
+                <i class="bi bi-check-circle"></i> Setujui
+              </button>
+              <button class="btn-del" onclick="updateStatus('${r.kode_reservasi}','dibatalkan')">
+                <i class="bi bi-x-circle"></i> Tolak
+              </button>` : ''}
+            ${r.status === 'disetujui' ? `
+              <button class="btn-add" style="background:linear-gradient(135deg,#0c7ec4,#2eb5ff)" onclick="updateStatus('${r.kode_reservasi}','selesai')">
+                <i class="bi bi-check-all"></i> Tandai Selesai
+              </button>` : ''}
+          </div>
+        </div>` : ''}
+
+        <button class="btn-cancel" onclick="resetResult()" style="margin-top:14px">
+          <i class="bi bi-arrow-counterclockwise"></i> Scan Lain
+        </button>
+      </div>
+    </div>`;
+}
+
+async function updateStatus(kode, status) {
+  const labels = { disetujui:'Setujui', dibatalkan:'Tolak', selesai:'Tandai Selesai' };
+  if (!confirm(`${labels[status]} reservasi ini?`)) return;
+  try {
+    const res  = await fetch(API, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'update_status', kode, status })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    showAdminAlert(`Status berhasil diubah menjadi "${status}"!`);
+    fetchDetail(kode);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function resetResult() {
+  lastScanned = '';
+  document.getElementById('qrResult').classList.remove('show');
+  document.getElementById('qrResult').innerHTML = '';
+  document.getElementById('qrPlaceholder').style.display = 'block';
+  document.getElementById('manualKode').value = '';
+}
+
+function showPlaceholder(msg) {
+  document.getElementById('qrPlaceholder').innerHTML = `
+    <div style="font-size:2.5rem;color:#ef4444;margin-bottom:10px"><i class="bi bi-camera-video-off"></i></div>
+    <p style="font-size:.85rem;color:var(--muted)">${msg}</p>`;
+}
+</script>
+</body>
+</html>

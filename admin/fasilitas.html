@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fasilitas — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <link rel="stylesheet" href="css/admin.css" />
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/data.js"></script>
+    <script src="js/admin-layout.js"></script>
+  </head>
+  <body>
+    <script>
+      let currentEditId = null;
+      let previewGambar = "";
+
+      document.addEventListener("DOMContentLoaded", () => {
+        renderAdminLayout("fasilitas.html", "Manajemen Fasilitas");
+        renderPage();
+      });
+
+      function renderPage() {
+        const list = DB.get("fasilitas");
+        const rows =
+          list.length === 0
+            ? `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:40px;">Belum ada fasilitas. Klik "Tambah" untuk mulai.</td></tr>`
+            : list
+                .map(
+                  (f) => `
+        <tr>
+          <td>
+            ${
+              f.gambar
+                ? `<img src="${f.gambar}" class="table-img" alt="${escHtml(f.nama_fasilitas)}">`
+                : `<div class="table-img-empty"><i class="bi bi-image"></i></div>`
+            }
+          </td>
+          <td style="font-weight:600;color:var(--navy);">${escHtml(f.nama_fasilitas)}</td>
+          <td style="color:var(--muted);font-size:.84rem;max-width:260px;">
+            ${escHtml(f.deskripsi?.slice(0, 80))}${f.deskripsi?.length > 80 ? "..." : ""}
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <button class="btn-edit" onclick="openEdit(${f.id})"><i class="bi bi-pencil"></i> Edit</button>
+              <button class="btn-del" onclick="confirmDelete(${f.id},'${escHtml(f.nama_fasilitas)}')"><i class="bi bi-trash"></i></button>
+            </div>
+          </td>
+        </tr>`,
+                )
+                .join("");
+
+        document.getElementById("adminContent").innerHTML = `
+    <div class="page-actions">
+      <div><h2 class="page-title">Manajemen Fasilitas</h2><p class="page-sub">Tambah, edit, hapus fasilitas beserta upload gambarnya</p></div>
+      <button class="btn-add" onclick="openAdd()"><i class="bi bi-plus-lg"></i> Tambah Fasilitas</button>
+    </div>
+    <div class="admin-table-wrap" style="overflow-x:auto;">
+      <table class="admin-table">
+        <thead><tr><th style="width:80px">Gambar</th><th>Nama Fasilitas</th><th>Deskripsi</th><th style="width:140px">Aksi</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+      }
+
+      function openAdd() {
+        currentEditId = null;
+        previewGambar = "";
+        showFormModal("Tambah Fasilitas", "", "", "");
+      }
+
+      function openEdit(id) {
+        const data = DB.get("fasilitas");
+        const f = data.find((x) => x.id === id);
+        if (!f) return;
+        currentEditId = id;
+        previewGambar = f.gambar || "";
+        showFormModal(
+          "Edit Fasilitas",
+          f.nama_fasilitas,
+          f.deskripsi,
+          f.gambar,
+        );
+      }
+
+      function showFormModal(title, nama, deskripsi, gambar) {
+        openModal(`
+    <div class="modal-box">
+      <div class="modal-title">${title}</div>
+      <div class="form-group">
+        <label class="form-label">Nama Fasilitas *</label>
+        <input type="text" id="fNama" class="form-control" value="${escHtml(nama)}" placeholder="Nama fasilitas" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Deskripsi</label>
+        <textarea id="fDesk" class="form-control" rows="3" placeholder="Deskripsi singkat...">${escHtml(deskripsi)}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gambar</label>
+        <input type="file" id="fFile" class="form-control" accept="image/*" onchange="onFileChange(event)" />
+        <div id="previewWrap" style="margin-top:10px;">
+          ${gambar ? `<img src="${gambar}" class="img-preview" id="fPreview">` : ""}
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Batal</button>
+        <button class="btn-save" onclick="saveForm()"><i class="bi bi-check-lg"></i> Simpan</button>
+      </div>
+    </div>`);
+      }
+
+      function onFileChange(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const MAX = 800;
+            let w = img.width,
+              h = img.height;
+            if (w > MAX || h > MAX) {
+              if (w > h) {
+                h = Math.round((h * MAX) / w);
+                w = MAX;
+              } else {
+                w = Math.round((w * MAX) / h);
+                h = MAX;
+              }
+            }
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+            previewGambar = canvas.toDataURL("image/jpeg", 0.75);
+            const wrap = document.getElementById("previewWrap");
+            if (wrap)
+              wrap.innerHTML = `<img src="${previewGambar}" class="img-preview" id="fPreview">`;
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function saveForm() {
+        const nama = document.getElementById("fNama")?.value.trim();
+        const desk = document.getElementById("fDesk")?.value.trim();
+        if (!nama) {
+          showAdminAlert("Nama fasilitas wajib diisi.", "error");
+          return;
+        }
+
+        const data = DB.get("fasilitas");
+        if (currentEditId !== null) {
+          const idx = data.findIndex((f) => f.id === currentEditId);
+          if (idx !== -1) {
+            data[idx].nama_fasilitas = nama;
+            data[idx].deskripsi = desk;
+            if (previewGambar) data[idx].gambar = previewGambar;
+          }
+          showAdminAlert("Fasilitas berhasil diperbarui.");
+        } else {
+          data.push({
+            id: DB.newId("fasilitas"),
+            nama_fasilitas: nama,
+            deskripsi: desk,
+            gambar: previewGambar,
+          });
+          showAdminAlert("Fasilitas berhasil ditambahkan.");
+        }
+        try {
+          DB.set("fasilitas", data);
+        } catch (err) {
+          if (err.name === "QuotaExceededError") {
+            showAdminAlert(
+              "Penyimpanan penuh! Coba hapus gambar lama atau gunakan gambar lebih kecil.",
+              "error",
+            );
+            return;
+          }
+          throw err;
+        }
+        closeModal();
+        renderPage();
+      }
+
+      function confirmDelete(id, nama) {
+        openModal(`
+    <div class="modal-box" style="max-width:400px;">
+      <div class="modal-title" style="color:#ef4444;">Hapus Fasilitas?</div>
+      <p style="color:var(--muted);margin-bottom:22px;">Yakin hapus <strong style="color:var(--navy);">${escHtml(nama)}</strong>? Tidak dapat dibatalkan.</p>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Batal</button>
+        <button class="btn-danger-solid" onclick="doDelete(${id})"><i class="bi bi-trash"></i> Hapus</button>
+      </div>
+    </div>`);
+      }
+
+      function doDelete(id) {
+        DB.set(
+          "fasilitas",
+          DB.get("fasilitas").filter((f) => f.id !== id),
+        );
+        showAdminAlert("Fasilitas berhasil dihapus.");
+        closeModal();
+        renderPage();
+      }
+    </script>
+  </body>
+</html>

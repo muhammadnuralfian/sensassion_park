@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manajemen User — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/admin-layout.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  renderAdminLayout('users.html', 'Manajemen User');
+  loadUsers();
+});
+
+const API = '../api/users.php';
+let allUsers = [];
+
+async function loadUsers() {
+  const c = document.getElementById('adminContent');
+  c.innerHTML = buildPageHTML();
+  await fetchUsers();
+}
+
+function buildPageHTML() {
+  return `
+    <div class="page-actions">
+      <div>
+        <div class="page-title">Manajemen User</div>
+        <p class="page-sub">Kelola akun admin panel</p>
+      </div>
+      <button class="btn-add" onclick="openTambahModal()"><i class="bi bi-person-plus"></i> Tambah User</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4" id="userStats">
+      <div class="col-6 col-md-3">
+        <div class="stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#0c7ec4,#2eb5ff)"><i class="bi bi-people"></i></div>
+          <div><div class="stat-num" id="sTotal">-</div><div class="stat-lbl">Total User</div></div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa)"><i class="bi bi-shield-check"></i></div>
+          <div><div class="stat-num" id="sAdmin">-</div><div class="stat-lbl">Admin</div></div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#22c55e,#4ade80)"><i class="bi bi-person-check"></i></div>
+          <div><div class="stat-num" id="sAktif">-</div><div class="stat-lbl">Aktif</div></div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#f0b429,#ffd166)"><i class="bi bi-person-x"></i></div>
+          <div><div class="stat-num" id="sNonaktif">-</div><div class="stat-lbl">Nonaktif</div></div></div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="admin-table-wrap mb-3" style="padding:14px 16px">
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <input type="text" id="userSearch" class="search-box" style="max-width:280px" placeholder="Cari nama atau email..." oninput="filterUsers()" />
+        <select id="statusFilter" class="search-box" style="max-width:160px" onchange="filterUsers()">
+          <option value="">Semua Status</option>
+          <option value="aktif">Aktif</option>
+          <option value="nonaktif">Nonaktif</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="admin-table-wrap" id="userTableWrap">
+      <div style="padding:40px;text-align:center;color:var(--muted)">
+        <div style="width:32px;height:32px;border-radius:50%;border:3px solid rgba(12,126,196,.15);border-top-color:#0c7ec4;animation:spin .8s linear infinite;margin:0 auto 12px"></div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        Memuat data user...
+      </div>
+    </div>`;
+}
+
+async function fetchUsers() {
+  try {
+    const res  = await fetch(`${API}?action=list`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    allUsers = data.data || [];
+    updateStats();
+    renderTable(allUsers);
+  } catch(e) {
+    document.getElementById('userTableWrap').innerHTML = `
+      <div style="padding:32px;text-align:center;color:#ef4444">
+        <i class="bi bi-exclamation-triangle" style="font-size:1.8rem;display:block;margin-bottom:8px"></i>
+        Gagal memuat data: ${e.message}
+      </div>`;
+  }
+}
+
+function updateStats() {
+  document.getElementById('sTotal').textContent    = allUsers.length;
+  document.getElementById('sAdmin').textContent    = allUsers.filter(u => u.role === 'admin').length;
+  document.getElementById('sAktif').textContent    = allUsers.filter(u => u.status === 'aktif').length;
+  document.getElementById('sNonaktif').textContent = allUsers.filter(u => u.status === 'nonaktif').length;
+}
+
+function renderTable(list) {
+  const wrap = document.getElementById('userTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<div style="padding:40px;text-align:center;color:var(--muted)"><i class="bi bi-people" style="font-size:2rem;display:block;margin-bottom:8px"></i>Tidak ada user ditemukan</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="admin-table">
+      <thead><tr>
+        <th>User</th><th>Status</th><th>Login Terakhir</th><th>Dibuat</th><th>Aksi</th>
+      </tr></thead>
+      <tbody>${list.map(u => userRow(u)).join('')}</tbody>
+    </table>`;
+}
+
+function userRow(u) {
+  const initials = u.nama.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  const statusBadge = u.status === 'aktif'
+    ? `<span class="badge-aktif">Aktif</span>`
+    : `<span class="badge-nonaktif">Nonaktif</span>`;
+  const lastLogin = u.last_login
+    ? new Date(u.last_login).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    : '<span style="color:var(--muted);font-size:.8rem">Belum pernah</span>';
+  const dibuat = new Date(u.dibuat_pada).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+
+  return `<tr>
+    <td>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="user-avatar">${initials}</div>
+        <div>
+          <div style="font-weight:700;font-size:.88rem;color:var(--navy)">${u.nama}</div>
+          <div style="font-size:.76rem;color:var(--muted)">${u.email}</div>
+        </div>
+      </div>
+    </td>
+    <td>${statusBadge}</td>
+    <td style="font-size:.8rem;color:var(--muted)">${lastLogin}</td>
+    <td style="font-size:.8rem;color:var(--muted)">${dibuat}</td>
+    <td>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-edit" onclick='openEditModal(${JSON.stringify(u).replace(/'/g,"&#39;")})'>
+          <i class="bi bi-pencil"></i> Edit
+        </button>
+        <button class="btn-del" onclick="hapusUser(${u.id}, '${u.nama.replace(/'/g,"\\'")}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function filterUsers() {
+  const q      = document.getElementById('userSearch').value.toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+  const filtered = allUsers.filter(u => {
+    const matchQ = !q || u.nama.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    const matchS = !status || u.status === status;
+    return matchQ && matchS;
+  });
+  renderTable(filtered);
+}
+
+function openTambahModal() {
+  openModal(`<div class="modal-box" style="max-width:480px">
+    <h3 class="modal-title"><i class="bi bi-person-plus" style="color:var(--teal);margin-right:8px"></i>Tambah User Admin</h3>
+    <div class="form-group"><label class="form-label">Nama Lengkap</label>
+      <input id="mNama" class="form-control" placeholder="Contoh: Budi Santoso" /></div>
+    <div class="form-group"><label class="form-label">Email</label>
+      <input id="mEmail" class="form-control" type="email" placeholder="user@example.com" /></div>
+    <div class="form-group"><label class="form-label">Password</label>
+      <input id="mPass" class="form-control" type="password" placeholder="Minimal 6 karakter" /></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-save" onclick="simpanUser()"><i class="bi bi-check-lg"></i> Simpan</button>
+    </div>
+  </div>`);
+}
+
+async function simpanUser() {
+  const body = {
+    nama:     document.getElementById('mNama').value.trim(),
+    email:    document.getElementById('mEmail').value.trim(),
+    password: document.getElementById('mPass').value.trim(),
+  };
+  if (!body.nama || !body.email || !body.password) {
+    return alert('Semua field wajib diisi!');
+  }
+  try {
+    const res  = await fetch(`${API}?action=tambah`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    closeModal();
+    showAdminAlert('User berhasil ditambahkan!');
+    await fetchUsers();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function openEditModal(u) {
+  openModal(`<div class="modal-box" style="max-width:480px">
+    <h3 class="modal-title"><i class="bi bi-pencil-square" style="color:var(--teal);margin-right:8px"></i>Edit User</h3>
+    <div class="form-group"><label class="form-label">Nama Lengkap</label>
+      <input id="eNama" class="form-control" value="${u.nama}" /></div>
+    <div class="form-group"><label class="form-label">Email</label>
+      <input id="eEmail" class="form-control" type="email" value="${u.email}" /></div>
+    <div class="form-group"><label class="form-label">Status</label>
+      <select id="eStatus" class="form-control">
+        <option value="aktif"    ${u.status==='aktif'?'selected':''}>Aktif</option>
+        <option value="nonaktif" ${u.status==='nonaktif'?'selected':''}>Nonaktif</option>
+      </select></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-save" onclick="updateUser(${u.id})"><i class="bi bi-check-lg"></i> Simpan Perubahan</button>
+    </div>
+  </div>`);
+}
+
+async function updateUser(id) {
+  const body = {
+    id,
+    nama:   document.getElementById('eNama').value.trim(),
+    email:  document.getElementById('eEmail').value.trim(),
+    status: document.getElementById('eStatus').value,
+  };
+  try {
+    const res  = await fetch(`${API}?action=edit`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    closeModal();
+    showAdminAlert('User berhasil diperbarui!');
+    await fetchUsers();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function hapusUser(id, nama) {
+  if (!confirm(`Hapus user "${nama}"? Tindakan ini tidak bisa dibatalkan.`)) return;
+
+  
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('sns_admin_user') || '{}'); } catch { return {}; } })();
+  const isSelf = currentUser.id && String(currentUser.id) === String(id);
+
+  try {
+    const res  = await fetch(`${API}?action=hapus`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+
+    if (isSelf) {
+      
+      localStorage.removeItem('sns_admin_logged');
+      localStorage.removeItem('sns_admin_user');
+      sessionStorage.removeItem('sns_admin_logged');
+      alert('Akun Anda telah dihapus. Anda akan diarahkan ke halaman login.');
+      window.location.href = 'login.html';
+      return;
+    }
+
+    showAdminAlert('User berhasil dihapus!');
+    await fetchUsers();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+</script>
+</body>
+</html>

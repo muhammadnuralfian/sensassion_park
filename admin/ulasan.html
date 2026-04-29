@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ulasan — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+  <script src="../js/data.js"></script>
+  <script src="js/admin-layout.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  renderAdminLayout('ulasan.html', 'Manajemen Ulasan');
+
+  const content = document.getElementById('adminContent');
+  if (!content) return;
+  content.innerHTML = '<div id="ulasanApp"></div>';
+
+  const { createApp, ref, reactive, computed } = Vue;
+
+  createApp({
+    template: `
+      <div>
+        <div class="page-actions">
+          <div>
+            <h2 class="page-title">Manajemen Ulasan</h2>
+            <p class="page-sub">Moderasi ulasan pengunjung — tampilkan atau sembunyikan ulasan</p>
+          </div>
+        </div>
+
+        <div v-if="alert.msg" :class="'alert-box alert-' + alert.type" style="margin-bottom:16px;">{{ alert.msg }}</div>
+
+        <!-- Filter Tabs -->
+        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+          <button
+            v-for="tab in tabs" :key="tab.value"
+            @click="activeTab = tab.value"
+            :style="\`padding:7px 16px;border-radius:99px;font-size:.82rem;font-weight:700;cursor:pointer;border:none;
+              background:\${activeTab===tab.value ? 'linear-gradient(135deg,var(--teal),var(--sky))' : 'var(--soft)'};
+              color:\${activeTab===tab.value ? '#fff' : 'var(--muted)'};
+              box-shadow:\${activeTab===tab.value ? '0 4px 12px rgba(12,126,196,0.3)' : 'none'};\`"
+          >
+            {{ tab.label }}
+            <span :style="\`display:inline-flex;align-items:center;justify-content:center;
+              width:18px;height:18px;border-radius:50%;font-size:.7rem;margin-left:4px;
+              background:\${activeTab===tab.value ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.08)'};\`">
+              {{ countTab(tab.value) }}
+            </span>
+          </button>
+        </div>
+
+        <div class="admin-table-wrap" style="overflow-x:auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Komentar</th>
+                <th style="width:130px">Rating</th>
+                <th style="width:100px">Tanggal</th>
+                <th style="width:130px">Status</th>
+                <th style="width:140px">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="filteredList.length === 0">
+                <td colspan="6" style="text-align:center;color:var(--muted);padding:40px;">
+                  {{ activeTab === 'menunggu' ? 'Tidak ada ulasan yang menunggu persetujuan.' : 'Belum ada ulasan.' }}
+                </td>
+              </tr>
+              <tr v-for="u in filteredList" :key="u.id">
+                <td style="font-weight:600;color:var(--navy);white-space:nowrap;">{{ u.nama }}</td>
+                <td style="color:var(--muted);font-size:.84rem;max-width:240px;">
+                  {{ u.komen.length > 80 ? u.komen.slice(0,80) + '...' : u.komen }}
+                </td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--navy);">{{ u.rating }}</span>
+                    <div>
+                      <i v-for="n in 5" :key="n"
+                         :class="'bi ' + (n <= u.rating ? 'bi-star-fill' : 'bi-star')"
+                         style="font-size:.8rem;color:var(--gold);"></i>
+                    </div>
+                  </div>
+                </td>
+                <td style="font-size:.8rem;color:var(--muted);white-space:nowrap;">{{ fmtDate(u.tanggal) }}</td>
+                <td>
+                  <div style="display:flex;flex-direction:column;gap:4px;">
+                    <button :class="u.tampil ? 'badge-aktif' : 'badge-nonaktif'" @click="toggleTampil(u)">
+                      {{ u.tampil ? 'Tampil' : 'Disembunyikan' }}
+                    </button>
+                    <span v-if="!u.tampil"
+                      @click="toggleTampil(u)"
+                      style="font-size:.7rem;color:#92400e;background:rgba(251,191,36,0.15);
+                             border:1px solid rgba(251,191,36,0.3);padding:2px 8px;border-radius:99px;
+                             text-align:center;cursor:pointer;">
+                      <i class="bi bi-check-lg"></i> Setujui
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div class="d-flex gap-2">
+                    <button class="btn-del" @click="confirmDel(u)"><i class="bi bi-trash"></i></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Modal Hapus -->
+        <div class="modal-overlay" v-if="delModal.show" @click.self="delModal.show = false">
+          <div class="modal-box" style="max-width:400px;">
+            <div class="modal-title" style="color:#ef4444;">Hapus Ulasan?</div>
+            <p style="color:var(--muted);margin-bottom:22px;">
+              Yakin hapus ulasan dari <strong style="color:var(--navy);">{{ delModal.nama }}</strong>?
+            </p>
+            <div class="modal-actions">
+              <button class="btn-cancel" @click="delModal.show = false">Batal</button>
+              <button class="btn-danger-solid" @click="doDelete"><i class="bi bi-trash"></i> Hapus</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `,
+
+    setup() {
+      const list      = ref(DB.get('ulasan'));
+      const activeTab = ref('semua');
+      const alert     = reactive({ msg: '', type: 'success' });
+      let alertTimer  = null;
+
+      const tabs = [
+        { value: 'semua',    label: 'Semua'    },
+        { value: 'menunggu', label: 'Menunggu' },
+        { value: 'tampil',   label: 'Tampil'   },
+      ];
+
+      const filteredList = computed(() => {
+        if (activeTab.value === 'menunggu') return list.value.filter(u => !u.tampil);
+        if (activeTab.value === 'tampil')   return list.value.filter(u => u.tampil);
+        return list.value;
+      });
+
+      function countTab(val) {
+        if (val === 'menunggu') return list.value.filter(u => !u.tampil).length;
+        if (val === 'tampil')   return list.value.filter(u => u.tampil).length;
+        return list.value.length;
+      }
+
+      function showAlert(msg, type = 'success') {
+        alert.msg = msg; alert.type = type;
+        clearTimeout(alertTimer);
+        alertTimer = setTimeout(() => { alert.msg = ''; }, 3000);
+      }
+
+      const modal = reactive({ show: false, isEdit: false });
+      const form  = reactive({ id: null, nama: '', komen: '', rating: 5, tanggal: today(), tampil: true });
+
+      function today() { return new Date().toISOString().split('T')[0]; }
+
+      function openAdd() { /* Dinonaktifkan — admin tidak menambah ulasan */ }
+      function openEdit(u) { /* Dinonaktifkan — admin tidak mengedit ulasan */ }
+      function closeModal() { modal.show = false; }
+      function save() { /* Dinonaktifkan */ }
+
+      function toggleTampil(u) {
+        const data = DB.get('ulasan');
+        const idx  = data.findIndex(x => x.id === u.id);
+        if (idx !== -1) data[idx].tampil = !data[idx].tampil;
+        DB.set('ulasan', data);
+        list.value = DB.get('ulasan');
+      }
+
+      const delModal = reactive({ show: false, id: null, nama: '' });
+      function confirmDel(u) { delModal.id = u.id; delModal.nama = u.nama; delModal.show = true; }
+      function doDelete() {
+        DB.set('ulasan', DB.get('ulasan').filter(u => u.id !== delModal.id));
+        list.value = DB.get('ulasan');
+        delModal.show = false;
+        showAlert('Ulasan berhasil dihapus.');
+      }
+
+      function fmtDate(d) {
+        return new Date(d).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+      }
+
+      return {
+        list, filteredList, activeTab, tabs, countTab,
+        alert, modal, form, delModal,
+        openAdd, openEdit, closeModal, save,
+        toggleTampil, confirmDel, doDelete, fmtDate
+      };
+    }
+  }).mount('#ulasanApp');
+});
+</script>
+</body>
+</html>

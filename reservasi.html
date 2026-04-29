@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reservasi — Sensasion</title>
+    <link rel="icon" type="image/png" href="public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .step-indicator { display:flex; align-items:center; gap:0; margin-bottom:36px; justify-content:center; }
+    .step-item { display:flex; flex-direction:column; align-items:center; position:relative; z-index:1; }
+    .step-circle { width:40px; height:40px; border-radius:50%; display:flex; align-items:center;
+      justify-content:center; font-weight:700; font-size:.85rem;
+      background:var(--line); color:var(--muted); transition:all .35s; border:2px solid transparent; }
+    .step-item.active .step-circle { background:linear-gradient(135deg,var(--teal),var(--sky)); color:#fff; box-shadow:0 4px 14px rgba(12,126,196,.4); }
+    .step-item.done .step-circle   { background:var(--teal); color:#fff; }
+    .step-label { font-size:.72rem; font-weight:600; color:var(--muted); margin-top:5px; }
+    .step-item.active .step-label  { color:var(--teal); }
+    .step-line { flex:1; height:2px; background:var(--line); max-width:80px; margin:0 4px; margin-bottom:20px; transition:background .35s; }
+    .step-line.done { background:var(--teal); }
+
+    .date-info-badge { display:inline-flex; align-items:center; gap:7px; padding:7px 14px;
+      border-radius:30px; font-size:.8rem; font-weight:600; }
+    .badge-ok   { background:rgba(34,197,94,.12); color:#15803d; border:1px solid rgba(34,197,94,.25); }
+    .badge-full { background:rgba(239,68,68,.1);  color:#991b1b; border:1px solid rgba(239,68,68,.25); }
+    .badge-load { background:rgba(12,126,196,.1); color:var(--ocean); border:1px solid rgba(12,126,196,.2); }
+
+    .qr-result-wrap { display:none; text-align:center; animation:fadeUp .5s ease both; }
+    .qr-result-wrap.show { display:block; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+    .qr-img-box { background:#fff; border-radius:var(--radius); padding:20px; display:inline-block; box-shadow:var(--shadow); margin:18px auto; }
+    .qr-img-box img { width:220px; height:220px; display:block; }
+    .kode-box { background:var(--soft); border:2px dashed var(--teal); border-radius:14px; padding:14px 22px;
+      font-family:'Courier New',monospace; font-size:1.4rem; font-weight:700; letter-spacing:3px;
+      color:var(--navy); display:inline-block; margin:10px auto; }
+    .info-row-res { display:flex; justify-content:space-between; padding:9px 0;
+      border-bottom:1px solid var(--line); font-size:.88rem; }
+    .info-row-res:last-child { border:none; }
+    .info-key-res { color:var(--muted); font-weight:600; }
+    .info-val-res { color:var(--navy); font-weight:700; text-align:right; }
+    .status-badge { display:inline-flex; align-items:center; gap:5px; padding:5px 14px;
+      border-radius:30px; font-size:.78rem; font-weight:700; }
+    .status-menunggu   { background:rgba(251,191,36,.15); color:#92400e; }
+    .status-disetujui  { background:rgba(34,197,94,.12);  color:#15803d; }
+    .status-selesai    { background:rgba(12,126,196,.12); color:var(--ocean); }
+    .status-dibatalkan { background:rgba(239,68,68,.1);   color:#991b1b; }
+    .spin { animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .alert-res { padding:13px 16px; border-radius:12px; font-size:.88rem; font-weight:600; display:none; }
+    .alert-res.show { display:flex; align-items:center; gap:8px; }
+    .alert-err  { background:rgba(239,68,68,.1);  color:#991b1b; border:1px solid rgba(239,68,68,.25); }
+    .alert-ok   { background:rgba(34,197,94,.12); color:#15803d; border:1px solid rgba(34,197,94,.25); }
+    input[type="date"].date-ok   { border-color:var(--teal) !important; }
+    input[type="date"].date-full { border-color:#ef4444 !important; }
+  </style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-hero">
+  <div><h1>Reservasi</h1><p>Pesan tempat Anda langsung di sini</p></div>
+</div>
+
+<section class="section-pad">
+  <div class="container">
+    <div class="text-center mb-5">
+      <div class="section-label">Reservasi Online</div>
+      <h2 class="section-title">Buat Reservasi</h2>
+      <p class="section-sub">Isi formulir di bawah — bukti QR Code akan langsung dikirimkan</p>
+    </div>
+
+    <div class="row justify-content-center">
+      <div class="col-lg-7 col-md-9">
+
+        <!-- Step Indicator -->
+        <div class="step-indicator">
+          <div class="step-item active" id="step1Item">
+            <div class="step-circle">1</div>
+            <div class="step-label">Isi Data</div>
+          </div>
+          <div class="step-line" id="line12"></div>
+          <div class="step-item" id="step2Item">
+            <div class="step-circle">2</div>
+            <div class="step-label">QR Code</div>
+          </div>
+        </div>
+
+        <!-- FORM PANEL -->
+        <div class="sns-card p-4 p-md-5" id="formPanel">
+          <div class="alert-res mb-3" id="alertBox">
+            <i class="bi bi-exclamation-circle"></i>
+            <span id="alertMsg"></span>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label-sns">Nama Lengkap *</label>
+            <input type="text" id="rNama" class="form-control-sns" placeholder="Nama lengkap Anda" maxlength="150" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label-sns">Nomor Telepon *</label>
+            <input type="tel" id="rTelepon" class="form-control-sns" placeholder="08xxxxxxxxxx" maxlength="20" />
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-sm-7">
+              <label class="form-label-sns">Tanggal Kunjungan *</label>
+              <input type="date" id="rTanggal" class="form-control-sns" />
+              <div id="dateStatus" class="mt-2"></div>
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label-sns">Jumlah Gazebo yang Ingin Disewa *</label>
+              <select id="rJumlah" class="form-control-sns">
+                <option value="">— Pilih tanggal dulu —</option>
+              </select>
+              <div id="gazeboHint" style="font-size:.74rem;color:var(--muted);margin-top:4px;"></div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label-sns">Jenis Kunjungan *</label>
+            <select id="rJenis" class="form-control-sns">
+              <option value="">Pilih jenis kunjungan...</option>
+              <option value="Umum (Renang + Mancing)">Umum (Renang + Mancing)</option>
+              <option value="Gathering / Acara Privat">Gathering / Acara Privat</option>
+              <option value="Lomba Mancing">Lomba Mancing</option>
+              <option value="Ekskul Renang">Ekskul Renang</option>
+            </select>
+          </div>
+          <div class="mb-4">
+            <label class="form-label-sns">Catatan (opsional)</label>
+            <textarea id="rCatatan" class="form-control-sns" rows="3" placeholder="Kebutuhan khusus, pertanyaan, dll."></textarea>
+          </div>
+          <button class="btn-primary-sns w-100 justify-content-center" id="btnSubmit" onclick="submitReservasi()">
+            <i class="bi bi-calendar-check"></i> Buat Reservasi Sekarang
+          </button>
+          <p style="text-align:center;color:var(--muted);font-size:.78rem;margin-top:10px;">
+            QR Code bukti pemesanan akan ditampilkan setelah berhasil
+          </p>
+        </div>
+
+        <!-- QR RESULT PANEL -->
+        <div class="qr-result-wrap" id="qrPanel">
+          <div class="sns-card p-4 p-md-5">
+            <div style="text-align:center;margin-bottom:24px;">
+              <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#4ade80);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+                <i class="bi bi-check-lg" style="color:#fff;font-size:1.8rem;"></i>
+              </div>
+              <h4 style="font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:6px;">Reservasi Berhasil!</h4>
+              <p style="color:var(--muted);font-size:.88rem;">Simpan QR Code atau kode reservasi berikut sebagai bukti pemesanan Anda.</p>
+            </div>
+
+            <div style="text-align:center;">
+              <div class="qr-img-box">
+                <img id="qrImage" src="" alt="QR Code Reservasi" loading="lazy" />
+                <p style="font-size:.7rem;color:var(--muted);margin-top:8px;margin-bottom:0;">Tunjukkan QR ini saat memasuki area Sensasion</p>
+              </div>
+            </div>
+
+            <div style="text-align:center;margin:10px 0 20px;">
+              <p style="font-size:.78rem;color:var(--muted);font-weight:600;margin-bottom:6px;">Kode Reservasi Anda</p>
+              <div class="kode-box" id="qrKode">—</div><br>
+              <button class="btn btn-sm mt-2" onclick="copyKode()"
+                style="background:var(--soft);color:var(--teal);border:1px solid var(--teal);border-radius:10px;font-size:.78rem;font-weight:600;">
+                <i class="bi bi-clipboard"></i> Salin Kode
+              </button>
+            </div>
+
+            <div style="background:var(--soft);border-radius:14px;padding:16px 18px;margin-bottom:20px;">
+              <h6 style="font-weight:700;color:var(--navy);margin-bottom:12px;">
+                <i class="bi bi-info-circle text-primary me-1"></i> Detail Reservasi
+              </h6>
+              <div class="info-row-res"><span class="info-key-res">Nama</span><span class="info-val-res" id="resNama">—</span></div>
+              <div class="info-row-res"><span class="info-key-res">Telepon</span><span class="info-val-res" id="resTelepon">—</span></div>
+              <div class="info-row-res"><span class="info-key-res">Tanggal Kunjungan</span><span class="info-val-res" id="resTanggal">—</span></div>
+              <div class="info-row-res"><span class="info-key-res">Jumlah Gazebo</span><span class="info-val-res" id="resJumlah">—</span></div>
+              <div class="info-row-res"><span class="info-key-res">Jenis Kunjungan</span><span class="info-val-res" id="resJenis">—</span></div>
+              <div class="info-row-res"><span class="info-key-res">Status</span><span id="resStatus">—</span></div>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap">
+              <a id="btnDownloadQR" href="#" download
+                class="btn-primary-sns flex-fill justify-content-center">
+                <i class="bi bi-download"></i> Unduh QR Code
+              </a>
+              <button class="btn flex-fill justify-content-center" onclick="resetForm()"
+                style="background:var(--soft);color:var(--navy);border:1px solid var(--line);border-radius:14px;padding:12px;font-weight:600;">
+                <i class="bi bi-arrow-left-circle"></i> Reservasi Baru
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="footer-placeholder"></div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/main.js"></script>
+<script>
+const API_BASE = 'api/reservasi.php';
+let dateCheckTimer = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const td = document.getElementById('rTanggal');
+  td.min = new Date().toISOString().split('T')[0];
+  td.addEventListener('change', onDateChange);
+});
+
+function onDateChange() {
+  const tgl = this.value;
+  const box = document.getElementById('dateStatus');
+  const inp = document.getElementById('rTanggal');
+  const gazeboSel = document.getElementById('rJumlah');
+  const gazeboHint = document.getElementById('gazeboHint');
+  if (!tgl) {
+    box.innerHTML='';
+    gazeboSel.innerHTML='<option value="">— Pilih tanggal dulu —</option>';
+    gazeboSel.disabled=true;
+    gazeboHint.textContent='';
+    return;
+  }
+  clearTimeout(dateCheckTimer);
+  box.innerHTML = '<span class="date-info-badge badge-load"><i class="bi bi-arrow-repeat spin"></i> Mengecek ketersediaan...</span>';
+  inp.classList.remove('date-ok','date-full');
+  gazeboSel.innerHTML='<option value="">Memuat slot...</option>';
+  gazeboSel.disabled=true;
+  gazeboHint.textContent='';
+  dateCheckTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(API_BASE+'?action=cek_tanggal&tanggal='+tgl);
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error);
+
+
+      const sisa      = d.sisa      ?? (d.kapasitas - d.terisi);
+      const kapasitas = d.kapasitas ?? 26;
+      const terpakai  = d.terisi    ?? 0;
+
+      if (sisa > 0) {
+        inp.classList.add('date-ok');
+        let label = sisa === kapasitas
+          ? `Tanggal tersedia — ${kapasitas} gazebo siap`
+          : `Tanggal tersedia — ${sisa} dari ${kapasitas} gazebo tersisa`;
+        box.innerHTML = `<span class="date-info-badge badge-ok"><i class="bi bi-check-circle-fill"></i> ${label}</span>`;
+
+        
+        let opts = '<option value="">Pilih jumlah gazebo...</option>';
+        for (let i = 1; i <= sisa; i++) {
+          opts += `<option value="${i}">${i} gazebo</option>`;
+        }
+        gazeboSel.innerHTML = opts;
+        gazeboSel.disabled = false;
+
+        if (terpakai > 0) {
+          gazeboHint.textContent = `${terpakai} gazebo sudah dipesan, tersisa ${sisa} unit`;
+        } else {
+          gazeboHint.textContent = `${kapasitas} gazebo tersedia`;
+        }
+      } else {
+        inp.classList.add('date-full');
+        box.innerHTML = '<span class="date-info-badge badge-full"><i class="bi bi-x-circle-fill"></i> Semua gazebo sudah penuh untuk tanggal ini — pilih tanggal lain</span>';
+        gazeboSel.innerHTML='<option value="">Tidak ada slot tersedia</option>';
+        gazeboSel.disabled=true;
+        gazeboHint.textContent='';
+      }
+    } catch(e) {
+      box.innerHTML = `<span class="date-info-badge badge-load"><i class="bi bi-exclamation-triangle"></i> Gagal cek ketersediaan: ${e.message}</span>`;
+      
+      let opts = '<option value="">Pilih jumlah gazebo...</option>';
+      for (let i = 1; i <= 26; i++) opts += `<option value="${i}">${i}</option>`;
+      gazeboSel.innerHTML = opts;
+      gazeboSel.disabled = false;
+      gazeboHint.textContent = 'Koneksi ke server gagal — menampilkan estimasi';
+    }
+  }, 500);
+}
+
+function showAlert(msg, isErr=true) {
+  const box = document.getElementById('alertBox');
+  box.className = 'alert-res show mb-3 '+(isErr?'alert-err':'alert-ok');
+  box.querySelector('i').className = isErr?'bi bi-exclamation-circle':'bi bi-check-circle';
+  document.getElementById('alertMsg').textContent = msg;
+}
+function hideAlert() { document.getElementById('alertBox').className = 'alert-res mb-3'; }
+
+async function submitReservasi() {
+  hideAlert();
+  const btn   = document.getElementById('btnSubmit');
+  const nama  = document.getElementById('rNama').value.trim();
+  const telp  = document.getElementById('rTelepon').value.trim();
+  const tgl   = document.getElementById('rTanggal').value;
+  const jml   = parseInt(document.getElementById('rJumlah').value)||0;
+  const jenis = document.getElementById('rJenis').value;
+  const cat   = document.getElementById('rCatatan').value.trim();
+
+  if (!nama)  { showAlert('Nama lengkap wajib diisi'); return; }
+  if (!telp)  { showAlert('Nomor telepon wajib diisi'); return; }
+  if (!tgl)   { showAlert('Tanggal kunjungan wajib dipilih'); return; }
+  if (document.getElementById('rTanggal').classList.contains('date-full')) {
+    showAlert('Tanggal yang dipilih sudah penuh. Silakan pilih tanggal lain.'); return;
+  }
+  if (!jml || jml < 1) { showAlert('Jumlah gazebo wajib dipilih'); return; }
+  if (!jenis) { showAlert('Jenis kunjungan wajib dipilih'); return; }
+  
+
+  btn.disabled=true;
+  const origHTML=btn.innerHTML;
+  btn.innerHTML='<i class="bi bi-arrow-repeat spin"></i> Memproses Reservasi...';
+  try {
+    const res = await fetch(API_BASE+'?action=buat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({nama, telepon:telp, tanggal_kunjungan:tgl, jumlah_pengunjung:jml, jenis_kunjungan:jenis, catatan:cat})
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error||'Terjadi kesalahan');
+    tampilkanHasil(data.data);
+  } catch(e) {
+    showAlert(e.message||'Gagal menghubungi server. Periksa koneksi Anda.');
+    btn.disabled=false; btn.innerHTML=origHTML;
+    
+    if (tgl) {
+      document.getElementById('rTanggal').dispatchEvent(new Event('change'));
+    }
+  }
+}
+
+function tampilkanHasil(d) {
+  document.getElementById('step1Item').classList.replace('active','done');
+  document.getElementById('line12').classList.add('done');
+  document.getElementById('step2Item').classList.add('active');
+  document.getElementById('formPanel').style.display='none';
+  const qrPanel=document.getElementById('qrPanel');
+  qrPanel.classList.add('show');
+
+  document.getElementById('qrKode').textContent=d.kode_reservasi;
+  document.getElementById('resNama').textContent=d.nama;
+  document.getElementById('resTelepon').textContent=d.telepon;
+  document.getElementById('resTanggal').textContent=formatTanggal(d.tanggal_kunjungan);
+  document.getElementById('resJumlah').textContent=d.jumlah_pengunjung+' unit';
+  document.getElementById('resJenis').textContent=d.jenis_kunjungan;
+
+  const statusMap={menunggu:['status-menunggu','bi-clock-history','Menunggu Konfirmasi'],
+    disetujui:['status-disetujui','bi-check-circle','Disetujui'],
+    selesai:['status-selesai','bi-check-all','Selesai'],
+    dibatalkan:['status-dibatalkan','bi-x-circle','Dibatalkan']};
+  const [cls,ico,lbl]=statusMap[d.status]||statusMap['menunggu'];
+  document.getElementById('resStatus').innerHTML=
+    '<span class="status-badge '+cls+'"><i class="bi '+ico+'"></i>'+lbl+'</span>';
+
+  const qrSrc = d.qr_url || fallbackQR(d.kode_reservasi);
+  const qrImg=document.getElementById('qrImage');
+  qrImg.src=qrSrc;
+  qrImg.onerror=()=>{ qrImg.src=fallbackQR(d.kode_reservasi); };
+  const btnDl=document.getElementById('btnDownloadQR');
+  btnDl.href=qrSrc;
+  btnDl.download='QR_Reservasi_'+d.kode_reservasi+'.png';
+
+  qrPanel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function fallbackQR(kode) {
+  return 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent('SNS-RESERVASI:'+kode)+'&format=png&ecc=M&margin=10';
+}
+
+function copyKode() {
+  const kode=document.getElementById('qrKode').textContent;
+  navigator.clipboard.writeText(kode).then(()=>alert('Kode '+kode+' berhasil disalin!')).catch(()=>prompt('Salin kode berikut:',kode));
+}
+
+function resetForm() {
+  document.getElementById('formPanel').style.display='';
+  document.getElementById('qrPanel').classList.remove('show');
+  document.getElementById('step1Item').className='step-item active';
+  document.getElementById('line12').classList.remove('done');
+  document.getElementById('step2Item').className='step-item';
+  ['rNama','rTelepon','rTanggal','rCatatan'].forEach(id=>{
+    const el=document.getElementById(id); el.value='';
+    el.classList.remove('date-ok','date-full');
+  });
+  document.getElementById('rJumlah').innerHTML='<option value="">— Pilih tanggal dulu —</option>';
+  document.getElementById('rJumlah').disabled=false;
+  document.getElementById('gazeboHint').textContent='';
+  document.getElementById('rJenis').value='';
+  document.getElementById('dateStatus').innerHTML='';
+  hideAlert();
+  document.getElementById('btnSubmit').disabled=false;
+  document.getElementById('btnSubmit').innerHTML='<i class="bi bi-calendar-check"></i> Buat Reservasi Sekarang';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function formatTanggal(str) {
+  if(!str) return '—';
+  const [y,m,d]=str.split('-');
+  const bln=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  return parseInt(d)+' '+bln[parseInt(m)]+' '+y;
+}
+</script>
+</body>
+</html>

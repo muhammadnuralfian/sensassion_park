@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Sensasion Admin</title>
+    <link rel="icon" type="image/png" href="../public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/admin-layout.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  renderAdminLayout('index.html', 'Dashboard');
+  loadDashboard();
+});
+
+async function loadDashboard() {
+  const c = document.getElementById('adminContent');
+  c.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">
+    <div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(12,126,196,.15);border-top-color:#0c7ec4;animation:spin .8s linear infinite;margin:0 auto 12px"></div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    Memuat dashboard...</div>`;
+
+  
+  let resStat = { total:0, menunggu:0, disetujui:0, selesai:0 };
+  try {
+    const r = await fetch('../api/reservasi.php?action=list');
+    const d = await r.json();
+    if (d.ok) {
+      const rows = d.data || [];
+      resStat.total     = rows.length;
+      resStat.menunggu  = rows.filter(x => x.status === 'menunggu').length;
+      resStat.disetujui = rows.filter(x => x.status === 'disetujui').length;
+      resStat.selesai   = rows.filter(x => x.status === 'selesai').length;
+    }
+  } catch(e) {}
+
+  
+  let userCount = 0;
+  try {
+    const r = await fetch('../api/users.php?action=list');
+    const d = await r.json();
+    if (d.ok) userCount = (d.data || []).filter(u => u.status === 'aktif').length;
+  } catch(e) {}
+
+  const today = new Date().toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  c.innerHTML = `
+    <!-- Welcome Banner -->
+    <div style="background:linear-gradient(135deg,var(--navy),#0d2144);border-radius:20px;padding:24px 28px;margin-bottom:24px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-30px;right:-30px;width:180px;height:180px;background:radial-gradient(circle,rgba(46,181,255,0.12) 0%,transparent 70%);border-radius:50%"></div>
+      <div style="position:relative;z-index:1">
+        <div style="font-size:.75rem;color:rgba(255,255,255,.5);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">${today}</div>
+        <h4 style="font-family:'Playfair Display',serif;color:white;margin-bottom:6px">Selamat Datang di Panel Admin</h4>
+        <p style="font-size:.85rem;color:rgba(255,255,255,.55);margin:0">Sensasion — Samarinda, Kalimantan Timur</p>
+      </div>
+    </div>
+
+    <!-- Stats Reservasi -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#0c7ec4,#2eb5ff)"><i class="bi bi-calendar-check"></i></div>
+          <div><div class="stat-num">${resStat.total}</div><div class="stat-lbl">Total Reservasi</div></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)"><i class="bi bi-clock-history"></i></div>
+          <div><div class="stat-num">${resStat.menunggu}</div><div class="stat-lbl">Menunggu</div></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#22c55e,#4ade80)"><i class="bi bi-check-circle"></i></div>
+          <div><div class="stat-num">${resStat.disetujui}</div><div class="stat-lbl">Disetujui</div></div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa)"><i class="bi bi-people"></i></div>
+          <div><div class="stat-num">${userCount}</div><div class="stat-lbl">User Aktif</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert jika ada reservasi menunggu -->
+    ${resStat.menunggu > 0 ? `
+    <div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:14px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:center;gap:12px">
+      <i class="bi bi-clock-history" style="color:#92400e;font-size:1.3rem;flex-shrink:0"></i>
+      <div style="flex:1">
+        <span style="font-weight:700;color:#92400e;font-size:.9rem">${resStat.menunggu} reservasi menunggu konfirmasi.</span>
+        <a href="reservasi.html" style="color:var(--teal);font-size:.85rem;font-weight:600;margin-left:8px">Tinjau sekarang &rarr;</a>
+      </div>
+    </div>` : ''}
+
+    <!-- Quick Links -->
+    <h5 style="font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:14px">Akses Cepat</h5>
+    <div class="row g-3 mb-4">
+      ${[
+        { href:'reservasi.html', icon:'bi-calendar-check', label:'Data Reservasi', desc:'Kelola & konfirmasi booking', color:'linear-gradient(135deg,#0c7ec4,#2eb5ff)' },
+        { href:'scan-qr.html',   icon:'bi-qr-code-scan',  label:'Scan QR',        desc:'Verifikasi pengunjung via QR', color:'linear-gradient(135deg,#0d9488,#2dd4bf)' },
+        { href:'users.html',     icon:'bi-people',         label:'Manajemen User', desc:'Kelola akun admin & operator', color:'linear-gradient(135deg,#8b5cf6,#a78bfa)' },
+        { href:'fasilitas.html', icon:'bi-grid-3x3-gap',  label:'Fasilitas',      desc:'Update info fasilitas',        color:'linear-gradient(135deg,#f59e0b,#fbbf24)' },
+        { href:'ulasan.html',    icon:'bi-chat-quote',     label:'Ulasan',         desc:'Moderasi ulasan pengunjung',   color:'linear-gradient(135deg,#ef4444,#f87171)' },
+        { href:'galeri.html',    icon:'bi-images',          label:'Galeri',         desc:'Kelola foto galeri',           color:'linear-gradient(135deg,#22c55e,#4ade80)' },
+      ].map(q => `
+        <div class="col-6 col-md-4">
+          <a href="${q.href}" class="quick-card">
+            <div class="quick-icon" style="background:${q.color}"><i class="bi ${q.icon}"></i></div>
+            <div class="quick-label">${q.label}</div>
+            <div class="quick-desc">${q.desc}</div>
+            <div class="quick-arrow"><i class="bi bi-arrow-right"></i></div>
+          </a>
+        </div>`).join('')}
+    </div>
+
+    <!-- Link cek reservasi publik -->
+    <div style="background:rgba(12,126,196,0.06);border:1px solid rgba(12,126,196,.15);border-radius:16px;padding:18px 22px;display:flex;align-items:center;gap:14px">
+      <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--teal),var(--sky));display:flex;align-items:center;justify-content:center;color:white;font-size:1.1rem;flex-shrink:0">
+        <i class="bi bi-globe2"></i>
+      </div>
+      <div style="flex:1">
+        <div style="font-weight:700;color:var(--navy);font-size:.9rem;margin-bottom:3px">Halaman Cek Status Reservasi (Publik)</div>
+        <div style="font-size:.8rem;color:var(--muted)">Pengunjung dapat mengecek status reservasinya secara mandiri</div>
+      </div>
+      <a href="../cek-reservasi.html" target="_blank" class="btn-add" style="white-space:nowrap;flex-shrink:0">
+        <i class="bi bi-box-arrow-up-right"></i> Buka
+      </a>
+    </div>`;
+}
+</script>
+</body>
+</html>

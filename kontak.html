@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kontak — Sensasion</title>
+    <link rel="icon" type="image/png" href="public/assets/favicon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-hero">
+  <div><h1>Kontak Kami</h1><p>Kami siap membantu Anda</p></div>
+</div>
+
+<section class="section-pad">
+  <div class="container">
+    <div class="text-center mb-5">
+      <div class="section-label">Kontak</div>
+      <h2 class="section-title">Hubungi Kami</h2>
+      <p class="section-sub">Punya pertanyaan atau ingin reservasi? Jangan ragu untuk menghubungi kami</p>
+    </div>
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="kontak-info-card h-100">
+          <h3 style="font-family:'Playfair Display',serif;font-size:1.35rem;margin-bottom:24px;">Informasi Kontak</h3>
+          <div class="kontak-info-item"><i class="bi bi-geo-alt-fill"></i><div><h4>Lokasi</h4><p id="kLokasi">Samarinda, Kalimantan Timur</p></div></div>
+          <div class="kontak-info-item"><i class="bi bi-clock-fill"></i><div><h4>Jam Operasional</h4><p id="kJam">09.00 – 18.00 WITA</p><p id="kLibur" style="font-size:.8rem;color:rgba(255,255,255,.4);margin-top:2px;"></p></div></div>
+          <div class="kontak-info-item"><i class="bi bi-whatsapp"></i><div><h4>WhatsApp</h4><p id="kWa">-</p></div></div>
+          <div class="kontak-info-item"><i class="bi bi-instagram"></i><div><h4>Instagram</h4><p id="kIg">-</p></div></div>
+          <div class="kontak-info-item"><i class="bi bi-person-badge-fill"></i><div><h4>Pengelola</h4><p id="kPengelola">-</p></div></div>
+          <a id="kWaBtn" href="#" target="_blank" class="btn-primary-sns mt-2"><i class="bi bi-whatsapp"></i> Chat Sekarang</a>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="sns-card p-4 p-md-5 h-100">
+          <h3 style="font-family:'Playfair Display',serif;font-size:1.3rem;color:var(--navy);margin-bottom:22px;">Kirim Pesan</h3>
+          <div id="msgAlert" style="display:none;" class="mb-3"></div>
+          <div class="mb-3">
+            <label class="form-label-sns">Nama *</label>
+            <input type="text" id="mNama" class="form-control-sns" placeholder="Nama Anda" />
+          </div>
+          <div class="mb-4">
+            <label class="form-label-sns">Pesan *</label>
+            <textarea id="mPesan" class="form-control-sns" rows="5" placeholder="Tulis pesan Anda di sini..."></textarea>
+          </div>
+          <button class="btn-primary-sns w-100 justify-content-center" onclick="kirimPesan()">
+            <i class="bi bi-send"></i> Kirim Pesan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="footer-placeholder"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/main.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const s = DB.get('settings');
+  document.getElementById('kLokasi').textContent  = s.lokasi;
+  document.getElementById('kJam').textContent     = s.jam_buka;
+  document.getElementById('kLibur').textContent   = 'Tutup: ' + s.hari_libur;
+  document.getElementById('kWa').textContent      = s.whatsapp;
+  document.getElementById('kIg').textContent      = s.instagram;
+  document.getElementById('kPengelola').textContent = s.pengelola;
+  const waUrl = `https://wa.me/${s.whatsapp}?text=${encodeURIComponent('Halo Sensasion!')}`;
+  document.getElementById('kWaBtn').href = waUrl;
+});
+
+function kirimPesan() {
+  const nama  = document.getElementById('mNama').value.trim();
+  const pesan = document.getElementById('mPesan').value.trim();
+  const alert = document.getElementById('msgAlert');
+  if (!nama || !pesan) {
+    alert.style.display = 'block';
+    alert.style.cssText = 'background:rgba(239,68,68,0.1);color:#991b1b;border:1px solid rgba(239,68,68,0.25);padding:12px 16px;border-radius:12px;font-size:.88rem;font-weight:600;';
+    alert.textContent = 'Harap isi nama dan pesan.';
+    return;
+  }
+  const s = DB.get('settings');
+  window.open(`https://wa.me/${s.whatsapp}?text=${encodeURIComponent(`Halo Sensasion!\n\nNama: ${nama}\nPesan: ${pesan}`)}`, '_blank');
+  alert.style.display = 'block';
+  alert.style.cssText = 'background:rgba(34,197,94,0.1);color:#166534;border:1px solid rgba(34,197,94,0.25);padding:12px 16px;border-radius:12px;font-size:.88rem;font-weight:600;';
+  alert.textContent = 'Pesan berhasil dikirim via WhatsApp!';
+  document.getElementById('mNama').value = '';
+  document.getElementById('mPesan').value = '';
+}
+</script>
+</body>
+</html>
